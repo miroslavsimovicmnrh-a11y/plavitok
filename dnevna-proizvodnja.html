@@ -168,7 +168,7 @@
 
 /* === Artikal autocomplete (custom dropdown) === */
 .ac2-wrap{position:relative}
-#acArtikal{
+#acArtikal, .ac2-menu{
   position:absolute; left:0; right:0; top:100%; margin-top:6px;
   background:#070b1a; border:1px solid #182246; border-radius:12px;
   box-shadow:0 18px 60px rgba(0,0,0,.6);
@@ -276,7 +276,7 @@
     <label for="artikal">Artikal (iz Excela)</label>
     <div class="ac2-wrap">
       <input type="text" id="artikal" name="artikal" placeholder="Počni da kucaš...">
-      <div id="acArtikal"></div>
+      <div id="acArtikal" class="ac2-menu"></div>
     </div>
   </div>
   <div class="field">
@@ -679,23 +679,24 @@ window.APP_PAGES = [
   }
   function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s'); }
 
-  function attach(){ 
-    const inp = document.getElementById('artikal');
-    const menu = document.getElementById('acArtikal');
+  function setupArtikalAC(inp){
+    const wrap = inp && inp.closest('.ac2-wrap');
+    const menu = wrap && wrap.querySelector('.ac2-menu');
     if(!inp || !menu) return;
 
     let items=[], idx=-1;
     function hide(){ menu.style.display='none'; menu.innerHTML=''; items=[]; idx=-1; }
-    function choose(i){ 
+    function choose(i){
       const a = items[i]; if(!a) return;
       inp.value = `${a.sifra} – ${a.dimenzije||''} ${a.jedinica?`(${a.jedinica})`:''}`.trim();
       hide();
-      document.getElementById('m1')?.focus();
+      if(inp.id==='artikal') document.getElementById('m1')?.focus();
+      if(inp.id==='editArtikal') document.getElementById('editM1')?.focus();
     }
-    function show(list){ 
+    function show(list){
       menu.innerHTML='';
       items = list.slice(0,30);
-      items.forEach((a,i)=>{ 
+      items.forEach((a,i)=>{
         const d=document.createElement('div'); d.className='ac2-item'+(i===0?' active':'');
         if(i===0) idx=0;
         const main=document.createElement('div'); main.className='ac2-main';
@@ -709,7 +710,7 @@ window.APP_PAGES = [
       });
       menu.style.display = items.length ? 'block' : 'none';
     }
-    function update(q){ 
+    function update(q){
       const n=norm(q||''); if(!n){ hide(); return; }
       const list=(ARTIKLI||[]).filter(a=> norm(`${a.sifra||''} ${a.dimenzije||''} ${a.jedinica||''}`).includes(n));
       list.length ? show(list) : hide();
@@ -717,8 +718,8 @@ window.APP_PAGES = [
     inp.setAttribute('autocomplete','off');
     inp.addEventListener('input', e=> update(e.target.value));
     inp.addEventListener('focus', e=> update(e.target.value));
-    document.addEventListener('click', e=>{ if(e.target!==inp && !menu.contains(e.target)) hide(); });
-    inp.addEventListener('keydown', e=>{ 
+    document.addEventListener('click', e=>{ if(e.target!==inp && !wrap.contains(e.target)) hide(); });
+    inp.addEventListener('keydown', e=>{
       if(menu.style.display!=='block') return;
       const nodes=[...menu.querySelectorAll('.ac2-item')]; if(!nodes.length) return;
       if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
@@ -731,9 +732,12 @@ window.APP_PAGES = [
     if(inp.value) update(inp.value);
   }
 
-  document.addEventListener('DOMContentLoaded', async () => { 
+  document.addEventListener('DOMContentLoaded', async () => {
     await loadExcel();
-    attach();
+    const mainInp = document.getElementById('artikal');
+    if(mainInp) setupArtikalAC(mainInp);
+    const editInp = document.getElementById('editArtikal');
+    if(editInp) setupArtikalAC(editInp);
   });
 })();
 // === END Artikal
@@ -1018,7 +1022,7 @@ async function renderPregledCSV(){
     <div class="deck" style="margin-top:8px">
       <div class="col-4"><label>Datum</label><input id="editDatum"/></div>
       <div class="col-4"><label>Broj zahteva</label><input id="editBroj"/></div>
-      <div class="col-4"><label>Artikal</label><input id="editArtikal"/></div>
+      <div class="col-4"><label>Artikal</label><div class="ac2-wrap"><input id="editArtikal"/><div class="ac2-menu"></div></div></div>
       <div class="col-3"><label>M¹</label><input id="editM1" type="number" step="any"/></div>
       <div class="col-3"><label>M²</label><input id="editM2" type="number" step="any"/></div>
       <div class="col-3"><label>M³</label><input id="editM3" type="number" step="any"/></div>

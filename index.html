@@ -166,7 +166,7 @@
 
 /* === Artikal autocomplete (custom dropdown) === */
 .ac2-wrap{position:relative}
-#acArtikal{
+#acArtikal, .ac2-menu{
   position:absolute; left:0; right:0; top:100%; margin-top:6px;
   background:#070b1a; border:1px solid #182246; border-radius:12px;
   box-shadow:0 18px 60px rgba(0,0,0,.6);
@@ -1063,12 +1063,69 @@ function openEditModal(nalog){
   back.style.display = 'flex';
   const tb = modal.querySelector('#detTabela tbody');
 
+  function setupSifraAC(inp){
+    const wrap = inp.closest('.ac2-wrap');
+    const menu = wrap.querySelector('.ac2-menu');
+    let items=[], idx=-1;
+    function hide(){ menu.style.display='none'; menu.innerHTML=''; items=[]; idx=-1; }
+    function choose(i){
+      const a = items[i]; if(!a) return;
+      inp.value = a.sifra || ''; inp.dispatchEvent(new Event('input'));
+      const tr = inp.closest('tr');
+      if(tr){
+        const d = tr.querySelector('input[data-k="dimenzije"]');
+        const j = tr.querySelector('input[data-k="jedinica"]');
+        if(d){ d.value = a.dimenzije || ''; d.dispatchEvent(new Event('input')); }
+        if(j){ j.value = a.jedinica || ''; j.dispatchEvent(new Event('input')); }
+      }
+      hide();
+    }
+    function show(list){
+      menu.innerHTML='';
+      items = list.slice(0,20);
+      items.forEach((a,i)=>{
+        const div=document.createElement('div');
+        div.className='ac2-item'+(i===0?' active':'');
+        if(i===0) idx=0;
+        const main=document.createElement('div'); main.className='ac2-main';
+        const t=document.createElement('div'); t.className='ac2-title'; t.textContent=a.sifra||'';
+        const s=document.createElement('div'); s.className='ac2-sub'; s.textContent=a.dimenzije||'';
+        main.append(t); main.append(s);
+        const u=document.createElement('div'); u.className='ac2-unit'; u.textContent=a.jedinica||'';
+        div.append(main); div.append(u);
+        div.addEventListener('click', ()=> choose(i));
+        menu.append(div);
+      });
+      menu.style.display = items.length ? 'block' : 'none';
+    }
+    function update(q){
+      const nq = normTxt(q||''); if(!nq){ hide(); return; }
+      const list = (ARTIKLI||[]).filter(a=>{
+        const hay = `${a.sifra||''} ${a.dimenzije||''}`;
+        return normTxt(hay).includes(nq);
+      });
+      list.length ? show(list) : hide();
+    }
+    inp.setAttribute('autocomplete','off');
+    inp.addEventListener('input', e=> update(e.target.value));
+    inp.addEventListener('focus', e=> update(e.target.value));
+    inp.addEventListener('keydown', e=>{
+      if(menu.style.display!=='block') return;
+      const nodes=[...menu.querySelectorAll('.ac2-item')]; if(!nodes.length) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      if(e.key==='ArrowUp'){ e.preventDefault(); idx=(idx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      if(e.key==='Enter'){ e.preventDefault(); if(idx>=0) choose(idx); }
+      if(e.key==='Escape'){ hide(); }
+    });
+    document.addEventListener('click', e=>{ if(e.target!==inp && !wrap.contains(e.target)) hide(); });
+  }
+
   function renderLines(){
     tb.innerHTML='';
     (nalog.stavke||[]).forEach((s,i)=>{
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input value="${s.sifra||''}" data-k="sifra"/></td>
+        <td><div class="ac2-wrap"><input value="${s.sifra||''}" data-k="sifra"/><div class="ac2-menu"></div></div></td>
         <td><input value="${s.dimenzije||''}" data-k="dimenzije"/></td>
         <td><input value="${s.jedinica||''}" data-k="jedinica" style="max-width:80px"/></td>
         <td class="right"><input type="number" step="0.001" value="${Number(s.kolicina||0)}" data-k="kolicina" style="max-width:120px"/></td>
@@ -1078,6 +1135,8 @@ function openEditModal(nalog){
         <td><input value="${s.napomena||''}" data-k="napomena"/></td>
         <td class="right"><button class="danger" data-del="${i}" style="width:auto">Ukloni</button></td>`;
       tb.appendChild(tr);
+      const sinp = tr.querySelector('input[data-k="sifra"]');
+      if(sinp) setupSifraAC(sinp);
     });
   }
   renderLines();
