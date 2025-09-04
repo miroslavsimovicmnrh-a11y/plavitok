@@ -297,6 +297,7 @@
 <th data-sort="firma">Firma ⬍</th>
 <th data-sort="adresa">Adresa ⬍</th>
 <th class="nowrap" data-sort="vreme">Kreirano ⬍</th>
+<th>Artikli</th>
 <th class="right nowrap"># stavki</th>
 <th class="right nowrap">Akcije</th>
 </tr>
@@ -577,12 +578,21 @@ function renderPregled(){
     const iFirma  = idx('firma');
     const iAdresa = idx('adresa');
     const iVreme  = idx('vreme');
-    const iStavke = idx('stavke');
+    const iStavke = (idx('stavke_json') >= 0) ? idx('stavke_json') : idx('stavke');
 
     const orders = rows.slice(1).map(cols=>{
       let stavke=[];
       const rawStavke = iStavke>=0 ? (cols[iStavke]||'') : '';
-      if(rawStavke){ try{ stavke = JSON.parse(rawStavke); }catch(_){ stavke=[]; } }
+      if(rawStavke){
+        try{
+          stavke = JSON.parse(rawStavke);
+          if(!Array.isArray(stavke) && typeof stavke === 'object'){
+            stavke = Object.values(stavke);
+          }
+        }catch(_){
+          stavke=[];
+        }
+      }
       return {
         broj:   (cols[iBroj]||'').trim(),
         firma:  iFirma>=0  ? (cols[iFirma]||'').trim()  : '',
@@ -598,11 +608,15 @@ function renderPregled(){
     filtered.forEach(n=>{
       const tr = document.createElement('tr');
       const dt = n.vreme ? new Date(n.vreme) : null;
+      const stavkeHtml = (n.stavke||[])
+        .map(s=> '<div>'+ (s.sifra||'') + ' (' + (s.kolicina||'') + ')</div>')
+        .join('');
       tr.innerHTML = '\
         <td class="nowrap"><b>'+ (n.broj||'') +'</b></td>\
         <td>'+ (n.firma||'') +'</td>\
         <td>'+ (n.adresa||'') +'</td>\
         <td class="nowrap">'+ (dt ? dt.toLocaleString() : '') +'</td>\
+        <td>'+ stavkeHtml +'</td>\
         <td class="right">'+ ((n.stavke||[]).length) +'</td>\
         <td class="right"><button class="secondary" data-open="'+ (n.broj||'') +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
       tb.appendChild(tr);
@@ -620,11 +634,15 @@ function renderPregled(){
         filtered.sort(_sorter.current);
         filtered.forEach(n=>{
           const tr = document.createElement('tr');
+          const stavkeHtml = (n.stavke||[])
+            .map(s=> '<div>'+ (s.sifra||'') + ' (' + (s.kolicina||'') + ')</div>')
+            .join('');
           tr.innerHTML = '\
             <td class="nowrap"><b>'+ n.broj +'</b></td>\
             <td>'+ (n.firma||'') +'</td>\
             <td>'+ (n.adresa||'') +'</td>\
             <td class="nowrap">'+ new Date(n.vreme).toLocaleString() +'</td>\
+            <td>'+ stavkeHtml +'</td>\
             <td class="right">'+ ((n.stavke||[]).length) +'</td>\
             <td class="right"><button class="secondary" data-open="'+ n.broj +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
           tb.appendChild(tr);
