@@ -624,13 +624,15 @@ function renderPregled(){
     filtered.forEach(n=>{
       const tr = document.createElement('tr');
       const dt = n.vreme ? new Date(n.vreme) : null;
-      const stavkeTxt = (n.stavke||[]).map(s=> (s.sifra||'') + ' (' + (s.kolicina||'') + ')').join('<br>');
+      const artikliHtml = (n.stavke||[])
+        .map(s => `<div>${s.sifra||''} (${s.kolicina||''})</div>`) 
+        .join('');
       tr.innerHTML = '\
         <td class="nowrap"><b>'+ (n.broj||'') +'</b></td>\
         <td>'+ (n.firma||'') +'</td>\
         <td>'+ (n.adresa||'') +'</td>\
         <td class="nowrap">'+ (dt ? dt.toLocaleString() : '') +'</td>\
-        <td>'+ stavkeTxt +'</td>\
+        <td>'+ artikliHtml +'</td>\
         <td class="right">'+ ((n.stavke||[]).length) +'</td>\
         <td class="right"><button class="secondary" data-open="'+ (n.broj||'') +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
       tb.appendChild(tr);
@@ -648,13 +650,15 @@ function renderPregled(){
         filtered.sort(_sorter.current);
         filtered.forEach(n=>{
           const tr = document.createElement('tr');
-          const stavkeTxt = (n.stavke||[]).map(s=> (s.sifra||'') + ' (' + (s.kolicina||'') + ')').join('<br>');
+          const artikliHtml = (n.stavke||[])
+            .map(s => `<div>${s.sifra||''} (${s.kolicina||''})</div>`)
+            .join('');
           tr.innerHTML = '\
             <td class="nowrap"><b>'+ n.broj +'</b></td>\
             <td>'+ (n.firma||'') +'</td>\
             <td>'+ (n.adresa||'') +'</td>\
             <td class="nowrap">'+ new Date(n.vreme).toLocaleString() +'</td>\
-            <td>'+ stavkeTxt +'</td>\
+            <td>'+ artikliHtml +'</td>\
             <td class="right">'+ ((n.stavke||[]).length) +'</td>\
             <td class="right"><button class="secondary" data-open="'+ n.broj +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
           tb.appendChild(tr);
