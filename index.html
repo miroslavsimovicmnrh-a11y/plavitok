@@ -225,16 +225,20 @@
 <label>Adresa projekta</label>
 <input id="adresa" placeholder="npr. Banovo Brdo Residence"/>
 </div>
-<div class="col-4">
+<div class="col-3">
 <label>Artikal</label>
 <div class="ac2-wrap"><input id="artikalInput" placeholder="kucaj šifru ili naziv (sifra/dimenzije) …"/><div id="acArtikal"></div></div>
 <select id="artikalSelect" style="display:none"></select>
 </div>
-<div class="col-4">
+<div class="col-3">
 <label>Količina</label>
 <input id="kolicina" step="0.001" type="number" value="1"/>
 </div>
-<div class="col-4">
+<div class="col-3">
+<label>Zahtev (M¹)</label>
+<input id="m1zahtev" step="0.001" type="number" placeholder="npr. 123.45"/>
+</div>
+<div class="col-3">
 <label>Napomena (stavka)</label>
 <input id="napomena" placeholder="npr. polirati, paletirati…"/>
 </div>
@@ -250,11 +254,11 @@
 <h3 style="margin:6px 0 10px 0">Stavke zahteva</h3>
 <table id="stavkeTable">
 <thead><tr>
-<th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th>Napomena</th><th class="right"></th>
+<th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th class="right">M¹</th><th>Napomena</th><th class="right"></th>
 </tr></thead>
 <tbody></tbody>
 <tfoot>
-<tr><th class="right" colspan="3">Ukupno stavki:</th><th class="right" id="ukupnoCell">0</th><th></th><th></th></tr>
+<tr><th class="right" colspan="3">Ukupno stavki:</th><th class="right" id="ukupnoCell">0</th><th></th><th></th><th></th></tr>
 </tfoot>
 </table>
 <div class="row" style="margin-top:12px">
@@ -308,7 +312,7 @@
 <span class="pill">Kreirano: <b id="detVreme"></b></span>
 </div>
 <table id="detTabela">
-<thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th>Napomena</th></tr></thead>
+<thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th class="right">M¹</th><th>Napomena</th></tr></thead>
 <tbody></tbody>
 </table>
 </div>
@@ -424,6 +428,7 @@
           <td>${s.dimenzije}</td>
           <td>${s.jedinica}</td>
           <td class="right">${Number(s.kolicina).toFixed(3)}</td>
+          <td class="right">${s.m1!=null?Number(s.m1).toFixed(2):''}</td>
           <td>${s.napomena||''}</td>
           <td class="right"><button class="danger" data-idx="${idx}" style="width:auto">Ukloni</button></td>`;
         tb.appendChild(tr);
@@ -439,13 +444,15 @@
       if(e.target.id==='addItem'){
         const sifra = q('#artikalSelect').value;
         const kolicina = q('#kolicina').value;
+        const m1 = q('#m1zahtev').value;
         const napomena = q('#napomena').value.trim();
         const a = ARTIKLI.find(x=>x.sifra===sifra);
         if(!a){ notify('Odaberi artikal', true); return; }
         if(!kolicina || Number(kolicina)<=0){ notify('Unesi količinu', true); return; }
-        STAVKE.push({ ...a, kolicina:Number(kolicina), napomena });
+        STAVKE.push({ ...a, kolicina:Number(kolicina), m1: m1 ? Number(m1) : null, napomena });
         renderStavke();
         q('#napomena').value='';
+        q('#m1zahtev').value='';
       }
     });
 
@@ -469,7 +476,7 @@
       const nalog = {
         broj, firma, adresa,
         vreme: new Date().toISOString(),
-        stavke: STAVKE.map(s=>({sifra:s.sifra, dimenzije:s.dimenzije, jedinica:s.jedinica, kolicina:s.kolicina, napomena:s.napomena||''}))
+        stavke: STAVKE.map(s=>({sifra:s.sifra, dimenzije:s.dimenzije, jedinica:s.jedinica, kolicina:s.kolicina, m1:s.m1, napomena:s.napomena||''}))
       };
       const orders = getOrders();
       orders.push(nalog);
@@ -646,7 +653,7 @@ function renderPregled(){
       const tb = q('#detTabela tbody'); tb.innerHTML='';
       nalog.stavke.forEach(s=>{
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${s.sifra}</td><td>${s.dimenzije}</td><td>${s.jedinica}</td><td class="right">${Number(s.kolicina).toFixed(3)}</td><td>${s.napomena||''}</td>`;
+        tr.innerHTML = `<td>${s.sifra}</td><td>${s.dimenzije}</td><td>${s.jedinica}</td><td class="right">${Number(s.kolicina).toFixed(3)}</td><td class="right">${s.m1!=null?Number(s.m1).toFixed(2):''}</td><td>${s.napomena||''}</td>`;
         tb.appendChild(tr);
       });
       q('#modalBack').style.display='flex';
@@ -1001,9 +1008,9 @@ function openEditModal(nalog){
       </label>
     </div>
     <table id="detTabela">
-      <thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th>Napomena</th><th class="right"></th></tr></thead>
+      <thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th class="right">M¹</th><th>Napomena</th><th class="right"></th></tr></thead>
       <tbody></tbody>
-      <tfoot><tr><td colspan="6"><button class="ghost" id="addLine" style="width:auto">➕ Dodaj stavku</button></td></tr></tfoot>
+      <tfoot><tr><td colspan="7"><button class="ghost" id="addLine" style="width:auto">➕ Dodaj stavku</button></td></tr></tfoot>
     </table>
   `;
   back.style.display = 'flex';
@@ -1018,6 +1025,7 @@ function openEditModal(nalog){
         <td><input value="${s.dimenzije||''}" data-k="dimenzije"/></td>
         <td><input value="${s.jedinica||''}" data-k="jedinica" style="max-width:80px"/></td>
         <td class="right"><input type="number" step="0.001" value="${Number(s.kolicina||0)}" data-k="kolicina" style="max-width:120px"/></td>
+        <td class="right"><input type="number" step="0.001" value="${Number(s.m1||0)}" data-k="m1" style="max-width:120px"/></td>
         <td><input value="${s.napomena||''}" data-k="napomena"/></td>
         <td class="right"><button class="danger" data-del="${i}" style="width:auto">Ukloni</button></td>`;
       tb.appendChild(tr);
@@ -1030,14 +1038,14 @@ function openEditModal(nalog){
     const tr = inp.closest('tr');
     const idx = Array.from(tb.children).indexOf(tr);
     const key = inp.getAttribute('data-k');
-    if(idx>=0 && key){ nalog.stavke[idx][key] = (key==='kolicina') ? Number(inp.value||0) : inp.value; }
+    if(idx>=0 && key){ nalog.stavke[idx][key] = (key==='kolicina' || key==='m1') ? Number(inp.value||0) : inp.value; }
   });
   tb.addEventListener('click', (ev)=>{
     const del = ev.target.getAttribute && ev.target.getAttribute('data-del');
     if(del!=null){ nalog.stavke.splice(Number(del),1); renderLines(); }
   });
   modal.querySelector('#addLine').addEventListener('click', ()=>{
-    (nalog.stavke = nalog.stavke||[]).push({sifra:'',dimenzije:'',jedinica:'',kolicina:0,napomena:''});
+    (nalog.stavke = nalog.stavke||[]).push({sifra:'',dimenzije:'',jedinica:'',kolicina:0,m1:0,napomena:''});
     renderLines();
   });
 
