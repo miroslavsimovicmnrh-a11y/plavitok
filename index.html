@@ -132,8 +132,8 @@
     .big{ font-size:28px; font-weight:900; background: linear-gradient(135deg, #93c5fd, #a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent }
 
     /* MODAL */
-    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:50}
-    .modal{width:min(1000px,96vw);background:#070b1a;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:50;overflow-y:auto;padding:10px}
+    .modal{width:min(1000px,96vw);background:#070b1a;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);max-height:90vh;overflow-y:auto}
     .pill{padding:6px 10px;border-radius:999px;background:#0e1730;border:1px solid var(--line);font-size:12px}
 
     /* SELECT FIX */
@@ -323,10 +323,12 @@
 <span class="pill">Adresa: <b id="detAdresa"></b></span>
 <span class="pill">Kreirano: <b id="detVreme"></b></span>
 </div>
+<div class="table-scroll">
 <table id="detTabela">
 <thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th class="right">M¹</th><th>Napomena</th></tr></thead>
 <tbody></tbody>
 </table>
+</div>
 </div>
 </div>
 <script>
@@ -1016,18 +1018,20 @@ function openEditModal(nalog){
       </div>
     </div>
     <div class="row" style="gap:14px;flex-wrap:wrap;margin:8px 0 10px 0">
-      <label class="pill" style="display:flex;align-items:center;gap:8px">Firma:
-        <input id="editFirma" value="${nalog.firma||''}" style="min-width:320px"/>
+      <label class="pill" style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px">Firma:
+        <input id="editFirma" value="${nalog.firma||''}" style="flex:1;min-width:0"/>
       </label>
-      <label class="pill" style="display:flex;align-items:center;gap:8px">Adresa:
-        <input id="editAdresa" value="${nalog.adresa||''}" style="min-width:320px"/>
+      <label class="pill" style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px">Adresa:
+        <input id="editAdresa" value="${nalog.adresa||''}" style="flex:1;min-width:0"/>
       </label>
     </div>
+    <div class="table-scroll">
     <table id="detTabela">
       <thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th class="right">M¹</th><th>Napomena</th><th class="right"></th></tr></thead>
       <tbody></tbody>
       <tfoot><tr><td colspan="7"><button class="ghost" id="addLine" style="width:auto">➕ Dodaj stavku</button></td></tr></tfoot>
     </table>
+    </div>
   `;
   back.style.display = 'flex';
   const tb = modal.querySelector('#detTabela tbody');
