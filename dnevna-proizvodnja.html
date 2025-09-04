@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+
+<html lang="sr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+
+<script>const API_SAVE_PROD="save_izvestaj.php";</script>
+<title>PROIZVODNJA :: NEBULA OPS</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+    /* =====================
+       NEBULA OPS — SCI‑FI UI
+       ===================== */
+    :root{
+      --bg:#050713;
+      --ink:#dbeafe;
+      --muted:#9aa7c1;
+      --glass:#0b1024cc;
+      --glass-strong:#0b1024f2;
+      --line:#182246;
+      --neon:#7c3aed;
+      --neon2:#06b6d4;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+      --grid:rgba(124,58,237,.15);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      color:var(--ink);
+      background: radial-gradient(1200px 800px at 10% -10%, rgba(124,58,237,.25), transparent 55%),
+                  radial-gradient(1000px 700px at 120% 10%, rgba(6,182,212,.22), transparent 50%),
+                  var(--bg);
+      overflow-x:hidden;
+      letter-spacing:.2px;
+    }
+    /* STARFIELD BACKDROP */
+    #stars, #scanlines{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+    }
+    #scanlines{
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,.03), rgba(255,255,255,.03) 1px, transparent 2px, transparent 3px);
+      mix-blend-mode: overlay; opacity:.25;
+    }
+    /* HOLO GRID */
+    .gridlines{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:
+        linear-gradient(to right, var(--grid) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+      background-size: 60px 60px, 60px 60px;
+      mask-image: radial-gradient(circle at 70% 0%, black 40%, transparent 70%);
+    }
+
+    /* HEADER */
+    header{
+      position:sticky; top:0; z-index:40;
+      backdrop-filter: blur(10px) saturate(130%);
+      background:linear-gradient(90deg, rgba(124,58,237,.22), rgba(6,182,212,.18));
+      border-bottom:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .h-wrap{max-width:1280px;margin:0 auto;padding:14px 22px;display:flex;gap:14px;align-items:center;justify-content:space-between}
+    .brand{font-weight:900; letter-spacing:.4px; display:flex; align-items:center; gap:10px}
+    .brand .sig{font-size:12px; color:var(--muted); letter-spacing:.28em}
+    .neon{background: linear-gradient(135deg, var(--neon), var(--neon2));
+      -webkit-background-clip:text;background-clip:text;color:transparent}
+    .tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(11,16,36,.7);
+      color:#eaf2ff;font-weight:800;cursor:pointer;letter-spacing:.3px;transition:.18s}
+    .tab:hover{transform:translateY(-1px); box-shadow:0 8px 24px rgba(124,58,237,.25)}
+    .tab-active{background: linear-gradient(135deg, var(--neon), var(--neon2)); color:#041017; border-color:transparent}
+    .chip{background:rgba(255,255,255,.08); padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.14)}
+
+    /* LAYOUT */
+    .wrap{max-width:1280px;margin:0 auto;padding:20px; position:relative; z-index:1}
+    .deck{display:grid; grid-template-columns:repeat(12,1fr); gap:12px; margin-top:12px}
+    .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+
+    .card{
+      background: var(--glass);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:18px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.35);
+    }
+    .card.glow{ position:relative; }
+    .card.glow::after{
+      content:""; position:absolute; inset:-1px;
+      border-radius:16px; pointer-events:none;
+      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(6,182,212,.35));
+      filter: blur(18px); opacity:.35;
+      z-index:-1;
+    }
+    label{display:block;font-weight:800;margin:6px 0 6px 2px;color:#c7d2fe;font-size:12px;letter-spacing:.3px;text-transform:uppercase}
+    input, select, button{
+      width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line);
+      background:#070b1a; color:var(--ink); outline:none; transition:.15s;
+    }
+    input:focus, select:focus{ box-shadow:0 0 0 2px rgba(6,182,212,.25), 0 0 0 5px rgba(124,58,237,.15) }
+    button{ cursor:pointer; font-weight:900; letter-spacing:.4px }
+    button.primary{ background:linear-gradient(135deg, var(--neon), var(--neon2)); color:#051019; border:none }
+    button.secondary{ background:#070b1a; border:1px solid var(--line) }
+    button.ghost{ background:transparent; border:1px dashed var(--line) }
+    button.ok{ background:linear-gradient(135deg, #16a34a, #22c55e); border:none; color:#041109 }
+    button.danger{ background:linear-gradient(135deg, #ef4444, #f97316); border:none; color:#130505 }
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .muted{ color:var(--muted); font-size:12px }
+    .hidden{ display:none !important }
+
+    /* TABLES */
+    table{ width:100%; border-collapse:separate; border-spacing:0 }
+    th,td{ padding:10px 12px; border-bottom:1px solid #141a33 }
+    thead th{ position:sticky; top:0; background:#0c1327; z-index:1; font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:#a5b4fc }
+    tbody tr:nth-child(even){ background:rgba(255,255,255,.02) }
+    tbody tr:hover{ background:rgba(6,182,212,.08) }
+    .right{text-align:right}
+    .nowrap{white-space:nowrap}
+
+    /* STATS */
+    .stat{ background: var(--glass-strong); border:1px solid var(--line); border-radius:16px; padding:14px; }
+    .stat h4{ margin:0 0 4px 0; color:#cbd5e1; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.45px }
+    .big{ font-size:28px; font-weight:900; background: linear-gradient(135deg, #93c5fd, #a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent }
+
+    /* MODAL */
+    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal{width:min(1000px,96vw);background:#070b1a;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+    .pill{padding:6px 10px;border-radius:999px;background:#0e1730;border:1px solid var(--line);font-size:12px}
+
+    /* SELECT FIX */
+    select{ position:relative; z-index:10; background:#070b1a }
+    .card, .deck{ overflow:visible }
+
+    /* MICRO ANIMATIONS */
+    @keyframes pulseLine{0%,100%{opacity:.35}50%{opacity:.75}}
+    .pulse{animation:pulseLine 1.8s infinite}
+  
+/* Autocomplete status */
+#companiesStatus{ margin-left:8px }
+
+
+/* === Firma autocomplete (custom dropdown) === */
+.ac-wrap{position:relative}
+.ac-menu{
+  position:absolute; left:0; right:0; top:100%; margin-top:6px;
+  background:#070b1a; border:1px solid #182246; border-radius:12px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6);
+  max-height:340px; overflow:auto; z-index:9999; display:none;
+}
+.ac-item{padding:10px 12px; cursor:pointer; display:flex; gap:10px; align-items:center;}
+.ac-item:hover, .ac-item.active{background:rgba(6,182,212,.12)}
+.ac-title{font-weight:800}
+.ac-sub{font-size:12px; color:#9aa7c1}
+/* Ensure containers don't clip the menu */
+.card, .grid, .deck { overflow: visible !important; }
+
+
+/* === Artikal autocomplete (custom dropdown) === */
+.ac2-wrap{position:relative}
+#acArtikal{
+  position:absolute; left:0; right:0; top:100%; margin-top:6px;
+  background:#070b1a; border:1px solid #182246; border-radius:12px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6);
+  max-height:340px; overflow:auto; z-index:9999; display:none;
+}
+.ac2-item{padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; align-items:center;}
+.ac2-item:hover, .ac2-item.active{background:rgba(124,58,237,.12)}
+.ac2-main{display:flex; flex-direction:column}
+.ac2-title{font-weight:800}
+.ac2-sub{font-size:12px; color:#9aa7c1}
+.ac2-unit{font-size:12px; color:#9aa7c1; white-space:nowrap}
+
+
+/* Side by side layout for M1 and M2 */
+.m1m2-wrap { display:flex; gap:20px; align-items:flex-start; }
+.m1m2-wrap label { display:block; }
+.m1m2-wrap input { width:120px; }
+
+
+/* Horizontal layout for M1 and M2 fields */
+.m1m2-row { display:flex; gap:30px; align-items:flex-end; margin-top:10px; }
+.m1m2-row .field { flex:1; }
+.m1m2-row label { display:block; margin-bottom:4px; }
+.m1m2-row input { width:100%; }
+
+
+/* Artikal + M2 + M1 horizontal row */
+.artikal-m-row { display:flex; gap:20px; align-items:flex-end; margin-top:10px; }
+.artikal-m-row .field { flex:1; }
+.artikal-m-row label { display:block; margin-bottom:4px; }
+.artikal-m-row input { width:100%; }
+
+</style>
+<style>
+/* Hamburger menu */
+.hamburger { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.18); background:transparent; color:inherit; border-radius:10px; cursor:pointer; }
+.hamburger .icon { width:22px; height:2px; background:currentColor; position:relative; display:block; }
+.hamburger .icon::before, .hamburger .icon::after { content:""; position:absolute; left:0; right:0; height:2px; background:currentColor; }
+.hamburger .icon::before { top:-6px; }
+.hamburger .icon::after { top:6px; }
+.nav-drawer { position:fixed; inset:0 0 0 auto; width:320px; max-width:90vw; background:rgba(17,24,39,0.98); color:#e5e7eb; border-left:1px solid rgba(255,255,255,0.08); transform:translateX(100%); transition:transform .25s ease; z-index:9999; display:flex; flex-direction:column; }
+.nav-drawer.open { transform:translateX(0); }
+.nav-drawer header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.nav-drawer .list { padding:8px 0; overflow:auto; }
+.nav-drawer .list a { display:flex; align-items:center; gap:10px; padding:10px 16px; color:inherit; text-decoration:none; border-bottom:1px solid rgba(255,255,255,0.06); }
+.nav-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.4); backdrop-filter: blur(2px); opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:9998; }
+.nav-backdrop.show { opacity:1; pointer-events:auto; }
+@media(min-width:900px){ .hamburger{ display:inline-flex; } }
+</style>
+<style>
+.dz-wrap{ position:relative; display:block; }
+#dzMenu{ position:absolute; left:0; right:0; top:100%; margin-top:6px; background:#0b1024; border:1px solid #1d2a5a; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,.45); max-height:320px; overflow:auto; z-index:9999; display:none;}
+.dz-item{ padding:10px 12px; cursor:pointer; }
+.dz-item:hover, .dz-item.active{ background:rgba(6,182,212,.12); }
+.dz-title{ font-weight:700; }
+.dz-sub{ font-size:12px; opacity:.8; }
+.dz-input{ width:100%; }
+</style>
+
+
+<style>#brojZahteva{display:none !important;}</style>
+</head>
+<body>
+<!-- immersive background -->
+<canvas id="stars"></canvas>
+<div id="scanlines"></div>
+<div class="gridlines"></div>
+<header>
+<div class="h-wrap">
+<div class="brand">
+<span class="neon">NEBULA OPS</span>
+<span class="sig">PROIZVODNJA • HOLO‑CONSOLE</span>
+</div>
+<div class="tabs">
+<button class="tab tab-active" id="tabUnos">🛠 NOVI IZVEŠTAJ</button>
+<button class="tab" id="tabPregled">📚 PREGLED</button>
+<span class="chip">Poslednji broj: <b id="navLastNo">0000</b></span>
+</div>
+</div>
+<button class="hamburger" id="hamburgerBtn"><span class="icon"></span><span>Meni</span></button></header>
+<main class="wrap">
+<div class="card">
+<div id="unosHeader"><h1 style="margin:0 0 12px 0;">Unos izveštaja o dnevnoj proizvodnji</h1>
+<p style="margin-top:0; color:#9aa3b2; font-size:14px;">Podaci se čuvaju u memoriji sajta (localStorage) i mogu se izvesti kao CSV/JSON.</p></div>
+<div id="sekcija-unos">
+<form id="form-izvestaj">
+<div class="row">
+<div>
+<label for="datum">Datum</label>
+<input id="datum" name="datum" required="" type="date"/>
+</div>
+<div>
+<label for="brojZahteva">Broj zahteva (iz indexa)</label>
+<select id="brojZahteva" name="brojZahteva">
+<option value="">-- izaberi ili unesi --</option>
+</select>
+<div class="dz-wrap"><input type="text" id="brojZahtevaManual" class="dz-input" placeholder="Unesi broj zahteva"><div id="dzMenu"></div></div>
+</div>
+</div>
+<div class="row">
+<div>
+<div class="artikal-m-row">  <div class="field">    <label for="artikal">Artikal (iz Excela)</label>    <div class="ac2-wrap"><input type="text" id="artikal" name="artikal" placeholder="Počni da kucaš...">    <div id="acArtikal"></div></div>  </div>  <div class="field">    <label for="m2">Proizvedeno (M²)</label>    <input type="number" step="any" id="m2" name="m2" placeholder="npr. 123.45">  </div>  <div class="field">    <label for="m1">Proizvedeno (M¹)</label>    <input type="number" step="any" id="m1" name="m1" placeholder="npr. 123.45">  </div></div></div></div></div>
+</div>
+<div>
+
+
+</div>
+</div>
+<div id="unosActions" style="margin-top:12px; display:flex; gap:8px;">
+<button type="submit">Sačuvaj izveštaj</button>
+<button class="secondary" id="resetBtn" type="button">Resetuj formu</button>
+</div>
+</form>
+
+<div class="card" id="lastCard" style="margin-top:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <h2 style="margin:0;">Poslednji uneti izveštaj</h2>
+  </div>
+  <table id="lastTable">
+    <thead>
+      <tr>
+        <th>Datum</th>
+        <th>Broj zahteva</th>
+        <th>Artikal</th>
+        <th>M¹</th>
+        <th>M²</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+</div><!-- end sekcija-unos -->
+</div>
+<div class="hidden" id="sekcija-pregled" style="margin-top:16px;">
+<div class="card" style="margin-top:20px;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<h2 style="margin:0;">Sačuvani izveštaji</h2>
+
+<div>
+<button id="exportCsv">Izvezi CSV</button>
+<button class="secondary" id="exportJson">Izvezi JSON</button>
+</div>
+</div>
+<table id="tabela">
+<thead>
+<tr>
+<th>Datum</th>
+<th>Broj zahteva</th>
+<th>Artikal</th>
+<th>m¹</th><th>M²</th>
+<th></th><th class="right nowrap">Akcije</th></tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div><!-- end sekcija-pregled -->
+</main>
+<script>
+const ARTIKLI = ["BL-3CM-40x40", "GR-2CM-100x50", "MR-5CM-20x20", "PL-2CM-60x30", "ST-STD-120x30"];
+
+// ——— Storage helpers ———
+const STORAGE_KEY = 'izvestajiProizvodnje';
+const ZAH_TE_KEY = 'proizvodnja_nalozi_v1'; // očekujemo da index.html čuva zahteve ovde
+
+function loadReports() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+function saveReports(list) { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+
+function loadZahteviOptions() { 
+  const raw = localStorage.getItem(ZAH_TE_KEY);
+  const sel = document.getElementById('brojZahteva');
+  sel.innerHTML = '<option value="">-- izaberi ili unesi --</option>';
+  if (!raw) return;
+  try {
+    const arr = JSON.parse(raw);
+    const list = Array.isArray(arr) ? arr : [];
+    const values = Array.from(new Set(list.map(o => (o && o.broj) ? String(o.broj) : null).filter(Boolean))).sort();
+    values.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+      const entry = Object.entries(obj).find(([k,v]) => ['string','number'].includes(typeof v));
+      return entry ? entry[0] : null;
+    };
+    let key = null;
+    if (list.length) key = guessKey(list[0]);
+    const values = new Set();
+    for (const it of list) {
+      const v = key ? it[key] : null;
+      if (v != null && v !== '') values.add(String(v));
+    }
+    [...values].sort().forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+function populateArtikli() {
+  const dl = document.getElementById('artikli');
+  dl.innerHTML = '';
+  (ARTIKLI || []).forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    dl.appendChild(opt);
+  });
+}
+
+// Render tabela
+function renderTable() {
+  const tbody = document.querySelector('#lastTable tbody');
+  tbody.innerHTML = '';
+  const data = loadReports();
+  data.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = ''
+      + '<td>' + (row.datum || '') + '</td>'
+      + '<td>' + (row.brojZahteva || '') + '</td>'
+      + '<td>' + (row.artikal || '') + '</td>'
+      + '<td>' + (row.m1 != null ? Number(row.m1).toFixed(2) : '') + '</td>'
+      + '<td>' + (row.m2 != null ? Number(row.m2).toFixed(2) : '') + '</td>'
+      + '<td class="actions">'
+      +   '<button data-action="edit" data-i="' + idx + '">Izmeni</button> '
+      +   '<button data-action="del" data-i="' + idx + '" class="secondary">Obriši</button>'
+      + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+
+function resetForm() {
+  document.getElementById('form-izvestaj').reset();
+  document.getElementById('datum').valueAsDate = new Date();
+}
+
+function exportCSV() {
+  const rows = loadReports();
+  const headers = ['datum','brojZahteva','artikal','m1','m2'];
+  const csv = [headers.join(',')]
+    .concat(rows.map(r => headers.map(h => {
+      const v = (r[h] ?? '').toString().replaceAll('"','""');
+      return '"' + v + '"';
+    }).join(',')))
+    .join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'izvestaji_proizvodnje.csv';
+  a.click();
+}
+
+function exportJSON() {
+  const rows = loadReports();
+  const blob = new Blob([JSON.stringify(rows, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'izvestaji_proizvodnje.json';
+  a.click();
+}
+
+// Submit handler
+document.getElementById('form-izvestaj').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const datum = document.getElementById('datum').value;
+  const selectVal = document.getElementById('brojZahteva').value;
+  const manualVal = document.getElementById('brojZahtevaManual').value.trim();
+  const brojZahteva = manualVal || selectVal;
+  const artikal = document.getElementById('artikal').value.trim();
+  const m1 = parseFloat(document.getElementById('m1').value);
+  const m2 = parseFloat(document.getElementById('m2').value);
+  if (!datum || !brojZahteva || !artikal || isNaN(m1)) {
+    alert('Popunite sva polja.');
+    return;
+  }
+  const rows = loadReports();
+  rows.push({ datum, brojZahteva, artikal, m1: isNaN(m1) ? null : m1, m2: isNaN(m2) ? null : m2 });
+  saveReports(rows);
+  renderTable();
+  resetForm();
+});
+
+// Edit/Delete actions
+document.querySelector('#tabela').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const idx = parseInt(btn.getAttribute('data-i'));
+  const rows = loadReports();
+  if (btn.getAttribute('data-action') === 'del') {
+    if (confirm('Obrisati stavku?')) {
+      rows.splice(idx, 1);
+      saveReports(rows);
+      renderTable();
+    }
+  } else if (btn.getAttribute('data-action') === 'edit') {
+    const r = rows[idx];
+    document.getElementById('datum').value = r.datum || '';
+    const sel = document.getElementById('brojZahteva');
+    const opt = Array.from(sel.options).find(o => o.value === r.brojZahteva);
+    if (opt) { sel.value = r.brojZahteva; document.getElementById('brojZahtevaManual').value=''; }
+    else { sel.value=''; document.getElementById('brojZahtevaManual').value = r.brojZahteva || ''; }
+    document.getElementById('artikal').value = r.artikal || '';
+    document.getElementById('m1').value = r.m1 != null ? r.m1 : '';
+    document.getElementById('m2').value = r.m2 != null ? r.m2 : '';
+    rows.splice(idx, 1);
+    saveReports(rows);
+    renderTable();
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', resetForm);
+document.getElementById('exportCsv').addEventListener('click', exportCSV);
+document.getElementById('exportJson').addEventListener('click', exportJSON);
+
+populateArtikli();
+loadZahteviOptions();
+renderTable();
+resetForm();
+</script>
+<aside class="nav-drawer" id="navDrawer"><header><div>Navigacija</div><button class="hamburger" id="closeDrawer"><span class="icon"></span><span>Zatvori</span></button></header><nav class="list" id="navList"></nav></aside><div class="nav-backdrop" id="navBackdrop"></div><script>
+// Manifest ugradjen u HTML (nema eksternog fajla)
+window.APP_PAGES = [
+  { href: "index.html", label: "Unos zahteva" },
+  { href: "dnevna-proizvodnja.html", label: "Dnevna proizvodnja" }
+];
+</script><script>
+(function(){
+  const open = ()=>{ document.getElementById('navDrawer').classList.add('open'); document.getElementById('navBackdrop').classList.add('show'); };
+  const close = ()=>{ document.getElementById('navDrawer').classList.remove('open'); document.getElementById('navBackdrop').classList.remove('show'); };
+  document.getElementById('hamburgerBtn').addEventListener('click', open);
+  document.getElementById('closeDrawer').addEventListener('click', close);
+  document.getElementById('navBackdrop').addEventListener('click', close);
+
+  function niceLabel(href){
+    try {
+      if (href.endsWith('index.html')) return 'Unos zahteva';
+      if (href.includes('dnevna-proizvodnja')) return 'Dnevna proizvodnja';
+      return href.replace(/\/.html?$/,'').replace(/[-_]/g,' ').replace(/^\/+/, '')
+                 .replace(/\.html$/,'')
+                 .replace(/\b\w/g, s=>s.toUpperCase());
+    } catch(e){ return href; }
+  }
+
+  function render(list){
+    const nav = document.getElementById('navList');
+    nav.innerHTML='';
+    const seen = new Set();
+    list.forEach(it=>{
+      const href = (typeof it === 'string') ? it : (it.href || '');
+      if(!href || seen.has(href)) return;
+      seen.add(href);
+      const label = (typeof it === 'string') ? niceLabel(href) : (it.label || niceLabel(href));
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = label;
+      nav.appendChild(a);
+    });
+  }
+
+  const fallback = [
+    { href: 'index.html', label: 'Unos zahteva' },
+    { href: 'dnevna-proizvodnja.html', label: 'Dnevna proizvodnja' },
+  ];
+
+  function init(){
+    if (window.APP_PAGES && Array.isArray(window.APP_PAGES) && window.APP_PAGES.length){
+      render(window.APP_PAGES);
+    } else {
+      render(fallback);
+    }
+  }
+  init();
+})();</script>
+<script>
+(function(){
+  const CSV_URL = 'data/zahtevi.csv';
+  let ZAH = [];
+  const input = document.getElementById('brojZahtevaManual');
+  const menu  = document.getElementById('dzMenu');
+  if(!input || !menu) return;
+  input.removeAttribute('readonly'); input.disabled = false;
+  function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s'); }
+  async function loadCSVOnce(){
+    if(ZAH.length) return ZAH;
+    try{
+      const res = await fetch(CSV_URL, {cache:'no-store'});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const text = await res.text();
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l=>l.trim().length);
+      if(lines.length<2) return ZAH;
+      const header = lines[0].split(';').map(h=>norm(h.trim()));
+      const iB = header.indexOf('broj'), iF = header.indexOf('firma'), iA = header.indexOf('adresa');
+      for(let i=1;i<lines.length;i++){
+        const cols = lines[i].split(';');
+        const b=(cols[iB]||'').replace(/^"|"$/g,'');
+        const f=(cols[iF]||'').replace(/^"|"$/g,'');
+        const a=(cols[iA]||'').replace(/^"|"$/g,'');
+        if(b) ZAH.push({broj:b, firma:f, adresa:a});
+      }
+    }catch(e){ console.warn('CSV load error', e); }
+    return ZAH;
+  }
+  let items=[], idx=-1;
+  function hide(){ menu.style.display='none'; menu.innerHTML=''; items=[]; idx=-1; }
+  function show(list){
+    menu.innerHTML='';
+    items = list.slice(0,30);
+    items.forEach((it,i)=>{
+      const d=document.createElement('div'); d.className='dz-item'+(i===0?' active':'');
+      if(i===0) idx=0;
+      const t=document.createElement('div'); t.className='dz-title'; t.textContent = `${it.broj} / ${it.firma||''} / ${it.adresa||''}`;
+      const s=document.createElement('div'); s.className='dz-sub'; s.textContent='iz CSV baze zahteva';
+      d.appendChild(t); d.appendChild(s);
+      d.addEventListener('click', ()=>choose(i));
+      menu.appendChild(d);
+    });
+    menu.style.display = items.length ? 'block' : 'none';
+  }
+  function choose(i){ const it = items[i]; if(!it) return; input.value = it.broj; hide(); input.dispatchEvent(new Event('change', {bubbles:true})); }
+  function updateList(q){
+    const n = norm(q||''); if(!n){ hide(); return; }
+    const list = ZAH.filter(z => norm(`${z.broj} / ${z.firma||''} / ${z.adresa||''}`).includes(n));
+    list.length ? show(list) : hide();
+  }
+  input.setAttribute('autocomplete','off');
+  input.addEventListener('input', async e=>{ await loadCSVOnce(); updateList(e.target.value); });
+  input.addEventListener('focus', async e=>{ await loadCSVOnce(); updateList(e.target.value); });
+  document.addEventListener('click', e=>{ if(e.target!==input && !menu.contains(e.target)) hide(); });
+  input.addEventListener('keydown', e=>{
+    if(menu.style.display!=='block') return;
+    const nodes=[...menu.querySelectorAll('.dz-item')]; if(!nodes.length) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+    if(e.key==='ArrowUp'){ e.preventDefault(); idx=(idx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+    if(e.key==='Enter'){ e.preventDefault(); if(idx>=0) choose(idx); }
+    if(e.key==='Escape'){ hide(); }
+  });
+})();
+</script>
+
+<script>
+// === Artikal: autocomplete (identično indexu) — with embedded fallback ===
+(function(){ 
+  const EXCEL_FILE = 'artikli.xlsx';
+  let ARTIKLI = [];
+  const EMBED = [{"sifra": "PL-2CM-60x30", "dimenzije": "001x000x000", "jedinica": "m2"}, {"sifra": "ST-STD-120x30", "dimenzije": "001x000x000", "jedinica": "kom"}, {"sifra": "BL-3CM-40x40", "dimenzije": "000x000x000", "jedinica": "m2"}, {"sifra": "GR-2CM-100x50", "dimenzije": "001x001x000", "jedinica": "m2"}, {"sifra": "MR-5CM-20x20", "dimenzije": "000x000x000", "jedinica": "kom"}, {"sifra": "30xslobodno", "dimenzije": "001x000x000", "jedinica": "nan"}];
+
+  async function parseWorkbook(ab){ 
+    const wb = XLSX.read(ab, { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    ARTIKLI = data.map(r => ({ 
+      sifra: r.sifra || r.Sifra || r.SIFRA,
+      dimenzije: r.dimenzije || r.Dimenzije || '',
+      jedinica: r.jedinica || r.JM || r.jm || r.Jedinica || ''
+    })).filter(a=>a.sifra);
+  }
+  async function loadExcel(){ 
+    try{ 
+      const res = await fetch(EXCEL_FILE, {cache:'no-store'});
+      if(!res.ok) throw new Error();
+      const ab = await res.arrayBuffer();
+      await parseWorkbook(ab);
+    }catch(e){ ARTIKLI = Array.isArray(EMBED) ? EMBED : []; }
+  }
+  function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s'); }
+
+  function attach(){ 
+    const inp = document.getElementById('artikal');
+    const menu = document.getElementById('acArtikal');
+    if(!inp || !menu) return;
+
+    let items=[], idx=-1;
+    function hide(){ menu.style.display='none'; menu.innerHTML=''; items=[]; idx=-1; }
+    function choose(i){ 
+      const a = items[i]; if(!a) return;
+      inp.value = `${a.sifra} – ${a.dimenzije||''} ${a.jedinica?`(${a.jedinica})`:''}`.trim();
+      hide();
+      document.getElementById('m1')?.focus();
+    }
+    function show(list){ 
+      menu.innerHTML='';
+      items = list.slice(0,30);
+      items.forEach((a,i)=>{ 
+        const d=document.createElement('div'); d.className='ac2-item'+(i===0?' active':'');
+        if(i===0) idx=0;
+        const main=document.createElement('div'); main.className='ac2-main';
+        const t=document.createElement('div'); t.className='ac2-title'; t.textContent=a.sifra||'';
+        const s=document.createElement('div'); s.className='ac2-sub'; s.textContent=a.dimenzije||'';
+        main.appendChild(t); main.appendChild(s);
+        const u=document.createElement('div'); u.className='ac2-unit'; u.textContent=a.jedinica||'';
+        d.appendChild(main); d.appendChild(u);
+        d.addEventListener('click', ()=>choose(i));
+        menu.appendChild(d);
+      });
+      menu.style.display = items.length ? 'block' : 'none';
+    }
+    function update(q){ 
+      const n=norm(q||''); if(!n){ hide(); return; }
+      const list=(ARTIKLI||[]).filter(a=> norm(`${a.sifra||''} ${a.dimenzije||''} ${a.jedinica||''}`).includes(n));
+      list.length ? show(list) : hide();
+    }
+    inp.setAttribute('autocomplete','off');
+    inp.addEventListener('input', e=> update(e.target.value));
+    inp.addEventListener('focus', e=> update(e.target.value));
+    document.addEventListener('click', e=>{ if(e.target!==inp && !menu.contains(e.target)) hide(); });
+    inp.addEventListener('keydown', e=>{ 
+      if(menu.style.display!=='block') return;
+      const nodes=[...menu.querySelectorAll('.ac2-item')]; if(!nodes.length) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      if(e.key==='ArrowUp'){ e.preventDefault(); idx=(idx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      if(e.key==='Enter'){ e.preventDefault(); if(idx>=0) choose(idx); }
+      if(e.key==='Escape'){ hide(); }
+    });
+
+    // Auto-open if already has value
+    if(inp.value) update(inp.value);
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => { 
+    await loadExcel();
+    attach();
+  });
+})();
+// === END Artikal
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  var d = document.getElementById('datum');
+  if(d && !d.value){
+    var t = new Date();
+    var yyyy = t.getFullYear();
+    var mm = String(t.getMonth()+1).padStart(2,'0');
+    var dd = String(t.getDate()).padStart(2,'0');
+    d.value = yyyy + "-" + mm + "-" + dd;
+  }
+});
+</script>
+
+
+<!-- DUAL SUBMIT FALLBACK -->
+<iframe name="serverSink" id="serverSink" style="display:none;"></iframe>
+<form id="serverMirrorForm" action="save_izvestaj.php" method="post" target="serverSink" style="display:none;">
+  <input type="hidden" name="datum" />
+  <input type="hidden" name="brojZahteva" />
+  <input type="hidden" name="artikal" />
+  <input type="hidden" name="m1" />
+  <input type="hidden" name="m2" />
+  <input type="hidden" name="napomena" />
+</form>
+<script>
+(function(){
+  // Attach once
+  const form = document.getElementById('form-izvestaj');
+  if(!form) return;
+  if(form.__dualSubmitAttached) return; form.__dualSubmitAttached = true;
+
+  form.addEventListener('submit', function(e){
+    // Populate and submit the hidden mirror form (server POST via iframe)
+    try{
+      const F = document.getElementById('serverMirrorForm');
+      if(F){
+        F.elements['datum'].value = document.getElementById('datum')?.value || '';
+        const sel = document.getElementById('brojZahteva')?.value || '';
+        const man = document.getElementById('brojZahtevaManual')?.value.trim() || '';
+        F.elements['brojZahteva'].value = man || sel;
+        F.elements['artikal'].value = document.getElementById('artikal')?.value || '';
+        F.elements['m1'].value = document.getElementById('m1')?.value || '';
+        F.elements['m2'].value = document.getElementById('m2')?.value || '';
+        const nEl = document.getElementById('napomena');
+        F.elements['napomena'].value = nEl ? (nEl.value||'').trim() : '';
+        F.submit();
+      }
+    }catch(err){ console.warn('mirror submit error', err); }
+  }, true);
+})();
+</script>
+
+
+<script>
+(function(){
+  const CSV_URL = 'data/proizvodnja.csv';
+  async function updateLastSaved(){
+    try{
+      const res = await fetch(CSV_URL, {cache:'no-store'});
+      if(!res.ok){ return; }
+      const text = await res.text();
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l=>l.trim().length);
+      if(lines.length < 2){ return; } // no data rows
+      const header = lines[0].split(';').map(s=>s.replace(/^"|"$/g,''));
+      const last = lines[lines.length-1].split(';').map(s=>s.replace(/^"|"$/g,''));
+      const obj = {}; header.forEach((h,i)=>obj[h]=last[i]||'');
+      const show = [
+        obj.datum ? ('Datum: '+obj.datum) : null,
+        obj.brojZahteva ? ('Broj: '+obj.brojZahteva) : null,
+        obj.artikal ? ('Artikal: '+obj.artikal) : null,
+        (obj.m1 && !isNaN(obj.m1)) ? ('M¹: '+obj.m1) : null,
+        (obj.m2 && !isNaN(obj.m2)) ? ('M²: '+obj.m2) : null,
+        obj.napomena ? ('Napomena: '+obj.napomena) : null
+      ].filter(Boolean).join(' • ');
+      const el = document.getElementById('lastSaved');
+      if(el) el.textContent = show || '—';
+    }catch(e){ /* silent */ }
+  }
+  // Trigger after server POST completes (iframe load)
+  const sink = document.getElementById('serverSink');
+  if(sink){
+    sink.addEventListener('load', updateLastSaved);
+  }
+  // Also run on load (to show current last)
+  document.addEventListener('DOMContentLoaded', updateLastSaved);
+  window.updateLastSaved = updateLastSaved;
+})();
+</script>
+
+
+<script>
+(function(){
+  const CSV_URL = 'data/proizvodnja.csv';
+  async function updateLastSaved(){
+    try{
+      const res = await fetch(CSV_URL, {cache:'no-store'});
+      if(!res.ok){ return; }
+      const text = await res.text();
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l=>l.trim().length);
+      if(lines.length < 2){ return; } // no data rows
+      const header = lines[0].split(';').map(s=>s.replace(/^"|"$/g,''));
+      const last = lines[lines.length-1].split(';').map(s=>s.replace(/^"|"$/g,''));
+      const obj = {}; header.forEach((h,i)=>obj[h]=last[i]||'');
+      // format numbers
+      const fmt = v => (v && !isNaN(v)) ? parseFloat(v).toFixed(2) : v;
+      const rowHtml = `<tr>
+        <td>${obj.datum||''}</td>
+        <td>${obj.brojZahteva||''}</td>
+        <td>${obj.artikal||''}</td>
+        <td>${fmt(obj.m1)||''}</td>
+        <td>${fmt(obj.m2)||''}</td>
+      </tr>`;
+      const tbody = document.querySelector('#lastTable tbody');
+      if(tbody){ tbody.innerHTML = rowHtml; }
+    }catch(e){ console.error('updateLastSaved', e); }
+  }
+  const sink = document.getElementById('serverSink');
+  if(sink){ sink.addEventListener('load', updateLastSaved); }
+  document.addEventListener('DOMContentLoaded', updateLastSaved);
+  window.updateLastSaved = updateLastSaved;
+})();
+</script>
+
+
+<script>
+(function(){
+  const q = s => document.querySelector(s);
+  function setTab(which){
+  const actions = document.getElementById("unosActions");
+    const header = document.getElementById("unosHeader");
+    q('#sekcija-unos')?.classList.toggle('hidden', which!=='unos'); if(actions) actions.style.display = (which==='unos') ? 'flex' : 'none'; if(header) header.style.display = (which==='unos') ? '' : 'none';
+    q('#sekcija-pregled')?.classList.toggle('hidden', which!=='pregled');
+    q('#tabUnos')?.classList.toggle('tab-active', which==='unos');
+    q('#tabPregled')?.classList.toggle('tab-active', which==='pregled');
+    if(which==='unos'){ loadLastFromCSV(); }
+    if(which==='pregled'){ renderPregledCSV(); }
+  }
+  q('#tabUnos')?.addEventListener('click', ()=>setTab('unos'));
+  q('#tabPregled')?.addEventListener('click', ()=>setTab('pregled'));
+  window.__setTab = setTab;
+  setTab('unos');
+})();
+
+async function loadLastFromCSV(){
+  try{
+    const res = await fetch('data/proizvodnja.csv', {cache:'no-store'});
+    if(!res.ok) return;
+    const text = await res.text();
+    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l=>l.trim().length);
+    if(lines.length < 2) return;
+    const header = lines[0].split(';').map(s=>s.replace(/^"|"$/g,''));
+    const last = lines[lines.length-1].split(';').map(s=>s.replace(/^"|"$/g,''));
+    const idx = (name)=> header.indexOf(name);
+    const fmt = v => (v && !isNaN(v)) ? Number(v).toFixed(2) : v;
+    const tbody = document.querySelector('#lastTable tbody');
+    if(!tbody) return;
+    const rowHtml = '<tr>'
+      + '<td>'+(last[idx('datum')]||'')+'</td>'
+      + '<td>'+(last[idx('brojZahteva')]||'')+'</td>'
+      + '<td>'+(last[idx('artikal')]||'')+'</td>'
+      + '<td>'+(fmt(last[idx('m1')])||'')+'</td>'
+      + '<td>'+(fmt(last[idx('m2')])||'')+'</td>'
+      + '</tr>';
+    tbody.innerHTML = rowHtml;
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded', loadLastFromCSV);
+
+async function fetchCSVAll(){
+  const res = await fetch('data/proizvodnja.csv', {cache:'no-store'});
+  if(!res.ok) return [];
+  const text = await res.text();
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l=>l.trim().length);
+  if(lines.length<2) return [];
+  const header = lines[0].split(';').map(s=>s.replace(/^"|"$/g,''));
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(';').map(s=>s.replace(/^"|"$/g,''));
+    rows.push({
+      datum: cols[header.indexOf('datum')]||'',
+      brojZahteva: cols[header.indexOf('brojZahteva')]||'',
+      artikal: cols[header.indexOf('artikal')]||'',
+      m1: cols[header.indexOf('m1')]||'',
+      m2: cols[header.indexOf('m2')]||''
+    });
+  }
+  return rows;
+}
+function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+async function renderPregledCSV(){
+  const tbody = document.querySelector('#tabela tbody');
+  if(!tbody) return;
+  tbody.innerHTML='';
+  const data = await fetchCSVAll();
+  const qZ = document.getElementById('filterZahtev')?.value || '';
+  const qA = document.getElementById('filterArtikal')?.value || '';
+  const qD = document.getElementById('filterDatum')?.value || '';
+  const z = norm(qZ), a = norm(qA), d = (qD||'').trim();
+  const fmt = v => (v && !isNaN(v)) ? Number(v).toFixed(2) : v;
+  data
+    .filter(r => (!z || norm(r.brojZahteva).includes(z))
+              && (!a || norm(r.artikal).includes(a))
+              && (!d || r.datum===d))
+    .forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = ''
+        + '<td>'+(r.datum||'')+'</td>'
+        + '<td>'+(r.brojZahteva||'')+'</td>'
+        + '<td>'+(r.artikal||'')+'</td>'
+        + '<td>'+(fmt(r.m1)||'')+'</td>'
+        + '<td>'+(fmt(r.m2)||'')+'</td>'
+        + '<td class="right"><button class="secondary otvori" type="button" style="width:auto">Otvori</button> <button class="ok edit-btn" type="button" style="width:auto;margin-left:6px">Izmeni</button></td>';
+      tbody.appendChild(tr);
+    });
+}
+['input','change'].forEach(evt=>{
+  document.getElementById('filterZahtev')?.addEventListener(evt, renderPregledCSV);
+  document.getElementById('filterArtikal')?.addEventListener(evt, renderPregledCSV);
+  document.getElementById('filterDatum')?.addEventListener(evt, renderPregledCSV);
+});
+</script>
+<script>
+/* === STARFIELD === */
+    const c = document.getElementById('stars'); const x = c.getContext('2d');
+    function resize(){ c.width = innerWidth; c.height = innerHeight; }
+    addEventListener('resize', resize); resize();
+    const N=200, stars=[];
+    for(let i=0;i<N;i++){ stars.push({x:Math.random()*c.width, y:Math.random()*c.height, z:Math.random()*2+0.5, r:Math.random()*1.6+0.2}); }
+    let mx=0,my=0; addEventListener('pointermove', e=>{ mx = (e.clientX/innerWidth - .5); my = (e.clientY/innerHeight - .5); });
+    function draw(){
+      x.clearRect(0,0,c.width,c.height);
+      for(const s of stars){
+        s.x += (s.z*0.15) + mx*0.6; if(s.x>c.width+10) s.x=-10;
+        s.y += my*0.4; if(s.y<-10) s.y=c.height+10; if(s.y>c.height+10) s.y=-10;
+        x.beginPath(); x.arc(s.x,s.y,s.r,0,Math.PI*2);
+        const g = x.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*3);
+        g.addColorStop(0,'rgba(124,58,237,.9)'); g.addColorStop(1,'rgba(124,58,237,0)');
+        x.fillStyle = g; x.fill();
+      }
+      requestAnimationFrame(draw);
+    } draw();
+
+    
+</script>
+
+<!-- EDIT MODAL (Proizvodnja) -->
+<div class="modal-back" id="modalBackProd" style="display:none">
+  <div class="modal">
+    <div class="row" style="justify-content:space-between">
+      <div class="row" style="gap:8px">
+        <span class="pill">Izmena izveštaja</span>
+        <span class="chip"><b id="chipKeyProd"></b></span>
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="secondary" id="cancelEditProd" type="button" style="width:auto">Otkaži</button>
+        <button class="ok" id="saveEditProd" type="button" style="width:auto">Sačuvaj izmene</button>
+      </div>
+    </div>
+    <div class="deck" style="margin-top:8px">
+      <div class="col-4"><label>Datum</label><input id="editDatum"/></div>
+      <div class="col-4"><label>Broj zahteva</label><input id="editBroj"/></div>
+      <div class="col-4"><label>Artikal</label><input id="editArtikal"/></div>
+      <div class="col-6"><label>M¹</label><input id="editM1" type="number" step="any"/></div>
+      <div class="col-6"><label>M²</label><input id="editM2" type="number" step="any"/></div>
+      <div class="col-12"><label>Napomena</label><input id="editNapomena"/></div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function(){
+  function txt(tr,i){ const td=tr&&tr.children&&tr.children[i]; return (td?td.textContent:'').trim(); }
+
+  document.addEventListener('click', function(e){
+    let btn = e.target && e.target.closest && e.target.closest('button.edit-btn');
+    if(!btn){
+      const alt = e.target.closest && e.target.closest('button.ok');
+      if(alt && /izmeni/i.test(alt.textContent||'')) btn = alt;
+    }
+    if(!btn) return;
+    const tr = btn.closest('tr'); if(!tr) return;
+    const d = txt(tr,0), b = txt(tr,1), a = txt(tr,2), m1 = txt(tr,3), m2 = txt(tr,4), nap = txt(tr,5) || '';
+    const back = document.getElementById('modalBackProd'); if(!back) return;
+    const chip = document.getElementById('chipKeyProd'); if(chip) chip.textContent = d+' • '+b+' • '+a;
+    const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.value=val; };
+    set('editDatum', d); set('editBroj', b); set('editArtikal', a); set('editM1', m1); set('editM2', m2); set('editNapomena', nap);
+    back.style.display = 'flex';
+  }, true);
+
+  // Zatvaranje
+  document.getElementById('cancelEditProd')?.addEventListener('click', function(){
+    const back = document.getElementById('modalBackProd'); if(back) back.style.display='none';
+  });
+  document.getElementById('modalBackProd')?.addEventListener('click', function(e){
+    if(e.target && e.target.id==='modalBackProd'){ e.currentTarget.style.display='none'; }
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  function cellTxt(tr,i){ const td=tr&&tr.children&&tr.children[i]; return (td?td.textContent:'').trim(); }
+  async function postForm(url, data){
+    const body = new URLSearchParams();
+    for(const [k,v] of Object.entries(data)) body.append(k, String(v ?? ''));
+    const res = await fetch(url, { method:'POST', body });
+    const text = await res.text();
+    return {ok: res.ok && /^OK/.test(text), status: res.status, text};
+  }
+
+  // Ensure original key is stored when opening Edit
+  document.addEventListener('click', function(e){
+    const btn = e.target && e.target.closest && e.target.closest('button.edit-btn');
+    if(!btn) return;
+    const tr = btn.closest('tr'); if(!tr) return;
+    const save = document.getElementById('saveEditProd'); if(!save) return;
+    save.dataset.odatum = cellTxt(tr,0);
+    save.dataset.obroj  = cellTxt(tr,1);
+    save.dataset.oart   = cellTxt(tr,2);
+  }, true);
+
+  // SAVE handler
+  const saveBtn = document.getElementById('saveEditProd');
+  if (saveBtn && !saveBtn._wired){
+    saveBtn._wired = true;
+    saveBtn.addEventListener('click', async function(){
+      const sb = this;
+      const payload = {
+        action:'update',
+        datum:       (document.getElementById('editDatum')||{}).value?.trim() || '',
+        brojZahteva: (document.getElementById('editBroj')||{}).value?.trim() || '',
+        artikal:     (document.getElementById('editArtikal')||{}).value?.trim() || '',
+        m1:          (document.getElementById('editM1')||{}).value?.trim() || '',
+        m2:          (document.getElementById('editM2')||{}).value?.trim() || '',
+        napomena:    (document.getElementById('editNapomena')||{}).value?.trim() || '',
+        o_datum:       sb.dataset.odatum || '',
+        o_brojZahteva: sb.dataset.obroj  || '',
+        o_artikal:     sb.dataset.oart   || ''
+      };
+      if(!payload.datum || !payload.brojZahteva || !payload.artikal){
+        alert('Obavezno: Datum, Broj zahteva, Artikal'); return;
+      }
+      const r = await postForm('../save_izvestaj.php', payload);
+      if(!r.ok){
+        alert('Greška pri čuvanju (HTTP '+r.status+'):\n'+r.text);
+        return;
+      }
+      // Close modal
+      const back = document.getElementById('modalBackProd'); if(back) back.style.display='none';
+
+      // Optimistic UI update: replace row matching original key
+      const rows = document.querySelectorAll('#tabela tbody tr');
+      for (const tr of rows){
+        const d0 = cellTxt(tr,0), b0 = cellTxt(tr,1), a0 = cellTxt(tr,2);
+        if (d0===sb.dataset.odatum && b0===sb.dataset.obroj && a0===sb.dataset.oart){
+          if(tr.children[0]) tr.children[0].textContent = payload.datum;
+          if(tr.children[1]) tr.children[1].textContent = payload.brojZahteva;
+          if(tr.children[2]) tr.children[2].textContent = payload.artikal;
+          if(tr.children[3]) tr.children[3].textContent = payload.m1;
+          if(tr.children[4]) tr.children[4].textContent = payload.m2;
+          if(tr.children[5]) tr.children[5].textContent = payload.napomena;
+          break;
+        }
+      }
+      // Full refresh if available
+      try{
+        const ref = (typeof renderPregledCSV==='function') ? renderPregledCSV() : null;
+        if (ref && typeof ref.then === 'function') await ref;
+      }catch(_){}
+    });
+  }
+})();
+</script>
+
+</body>
+</html>

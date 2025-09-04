@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+
+<html lang="sr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PROIZVODNJA :: NEBULA OPS</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+    /* =====================
+       NEBULA OPS — SCI‑FI UI
+       ===================== */
+    :root{
+      --bg:#050713;
+      --ink:#dbeafe;
+      --muted:#9aa7c1;
+      --glass:#0b1024cc;
+      --glass-strong:#0b1024f2;
+      --line:#182246;
+      --neon:#7c3aed;
+      --neon2:#06b6d4;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+      --grid:rgba(124,58,237,.15);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      color:var(--ink);
+      background: radial-gradient(1200px 800px at 10% -10%, rgba(124,58,237,.25), transparent 55%),
+                  radial-gradient(1000px 700px at 120% 10%, rgba(6,182,212,.22), transparent 50%),
+                  var(--bg);
+      overflow-x:hidden;
+      letter-spacing:.2px;
+    }
+    /* STARFIELD BACKDROP */
+    #stars, #scanlines{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+    }
+    #scanlines{
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,.03), rgba(255,255,255,.03) 1px, transparent 2px, transparent 3px);
+      mix-blend-mode: overlay; opacity:.25;
+    }
+    /* HOLO GRID */
+    .gridlines{
+      position:fixed; inset:0; z-index:0; pointer-events:none;
+      background-image:
+        linear-gradient(to right, var(--grid) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+      background-size: 60px 60px, 60px 60px;
+      mask-image: radial-gradient(circle at 70% 0%, black 40%, transparent 70%);
+    }
+
+    /* HEADER */
+    header{
+      position:sticky; top:0; z-index:40;
+      backdrop-filter: blur(10px) saturate(130%);
+      background:linear-gradient(90deg, rgba(124,58,237,.22), rgba(6,182,212,.18));
+      border-bottom:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .h-wrap{max-width:1280px;margin:0 auto;padding:14px 22px;display:flex;gap:14px;align-items:center;justify-content:space-between}
+    .brand{font-weight:900; letter-spacing:.4px; display:flex; align-items:center; gap:10px}
+    .brand .sig{font-size:12px; color:var(--muted); letter-spacing:.28em}
+    .neon{background: linear-gradient(135deg, var(--neon), var(--neon2));
+      -webkit-background-clip:text;background-clip:text;color:transparent}
+    .tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(11,16,36,.7);
+      color:#eaf2ff;font-weight:800;cursor:pointer;letter-spacing:.3px;transition:.18s}
+    .tab:hover{transform:translateY(-1px); box-shadow:0 8px 24px rgba(124,58,237,.25)}
+    .tab-active{background: linear-gradient(135deg, var(--neon), var(--neon2)); color:#041017; border-color:transparent}
+    .chip{background:rgba(255,255,255,.08); padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.14)}
+
+    /* LAYOUT */
+    .wrap{max-width:1280px;margin:0 auto;padding:20px; position:relative; z-index:1}
+    .deck{display:grid; grid-template-columns:repeat(12,1fr); gap:12px; margin-top:12px}
+    .col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-5{grid-column:span 5}.col-6{grid-column:span 6}.col-7{grid-column:span 7}.col-8{grid-column:span 8}.col-12{grid-column:span 12}
+
+    .card{
+      background: var(--glass);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:18px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 10px 30px rgba(0,0,0,.35);
+    }
+    .card.glow{ position:relative; }
+    .card.glow::after{
+      content:""; position:absolute; inset:-1px;
+      border-radius:16px; pointer-events:none;
+      background: linear-gradient(135deg, rgba(124,58,237,.35), rgba(6,182,212,.35));
+      filter: blur(18px); opacity:.35;
+      z-index:-1;
+    }
+    label{display:block;font-weight:800;margin:6px 0 6px 2px;color:#c7d2fe;font-size:12px;letter-spacing:.3px;text-transform:uppercase}
+    input, select, button{
+      width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line);
+      background:#070b1a; color:var(--ink); outline:none; transition:.15s;
+    }
+    input:focus, select:focus{ box-shadow:0 0 0 2px rgba(6,182,212,.25), 0 0 0 5px rgba(124,58,237,.15) }
+    button{ cursor:pointer; font-weight:900; letter-spacing:.4px }
+    button.primary{ background:linear-gradient(135deg, var(--neon), var(--neon2)); color:#051019; border:none }
+    button.secondary{ background:#070b1a; border:1px solid var(--line) }
+    button.ghost{ background:transparent; border:1px dashed var(--line) }
+    button.ok{ background:linear-gradient(135deg, #16a34a, #22c55e); border:none; color:#041109 }
+    button.danger{ background:linear-gradient(135deg, #ef4444, #f97316); border:none; color:#130505 }
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .muted{ color:var(--muted); font-size:12px }
+    .hidden{ display:none !important }
+
+    /* TABLES */
+    table{ width:100%; border-collapse:separate; border-spacing:0 }
+    th,td{ padding:10px 12px; border-bottom:1px solid #141a33 }
+    thead th{ position:sticky; top:0; background:#0c1327; z-index:1; font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:#a5b4fc }
+    tbody tr:nth-child(even){ background:rgba(255,255,255,.02) }
+    tbody tr:hover{ background:rgba(6,182,212,.08) }
+    .right{text-align:right}
+    .nowrap{white-space:nowrap}
+
+    /* STATS */
+    .stat{ background: var(--glass-strong); border:1px solid var(--line); border-radius:16px; padding:14px; }
+    .stat h4{ margin:0 0 4px 0; color:#cbd5e1; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.45px }
+    .big{ font-size:28px; font-weight:900; background: linear-gradient(135deg, #93c5fd, #a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent }
+
+    /* MODAL */
+    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal{width:min(1000px,96vw);background:#070b1a;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+    .pill{padding:6px 10px;border-radius:999px;background:#0e1730;border:1px solid var(--line);font-size:12px}
+
+    /* SELECT FIX */
+    select{ position:relative; z-index:10; background:#070b1a }
+    .card, .deck{ overflow:visible }
+
+    /* MICRO ANIMATIONS */
+    @keyframes pulseLine{0%,100%{opacity:.35}50%{opacity:.75}}
+    .pulse{animation:pulseLine 1.8s infinite}
+  
+/* Autocomplete status */
+#companiesStatus{ margin-left:8px }
+
+
+/* === Firma autocomplete (custom dropdown) === */
+.ac-wrap{position:relative}
+.ac-menu{
+  position:absolute; left:0; right:0; top:100%; margin-top:6px;
+  background:#070b1a; border:1px solid #182246; border-radius:12px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6);
+  max-height:340px; overflow:auto; z-index:9999; display:none;
+}
+.ac-item{padding:10px 12px; cursor:pointer; display:flex; gap:10px; align-items:center;}
+.ac-item:hover, .ac-item.active{background:rgba(6,182,212,.12)}
+.ac-title{font-weight:800}
+.ac-sub{font-size:12px; color:#9aa7c1}
+/* Ensure containers don't clip the menu */
+.card, .grid, .deck { overflow: visible !important; }
+
+
+/* === Artikal autocomplete (custom dropdown) === */
+.ac2-wrap{position:relative}
+#acArtikal{
+  position:absolute; left:0; right:0; top:100%; margin-top:6px;
+  background:#070b1a; border:1px solid #182246; border-radius:12px;
+  box-shadow:0 18px 60px rgba(0,0,0,.6);
+  max-height:340px; overflow:auto; z-index:9999; display:none;
+}
+.ac2-item{padding:10px 12px; cursor:pointer; display:flex; justify-content:space-between; gap:10px; align-items:center;}
+.ac2-item:hover, .ac2-item.active{background:rgba(124,58,237,.12)}
+.ac2-main{display:flex; flex-direction:column}
+.ac2-title{font-weight:800}
+.ac2-sub{font-size:12px; color:#9aa7c1}
+.ac2-unit{font-size:12px; color:#9aa7c1; white-space:nowrap}
+
+</style>
+<style>
+/* Hamburger menu */
+.hamburger { display:flex; align-items:center; justify-content:center; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.18); background:transparent; color:inherit; border-radius:10px; cursor:pointer; }
+.hamburger .icon { width:22px; height:2px; background:currentColor; position:relative; display:block; }
+.hamburger .icon::before, .hamburger .icon::after { content:""; position:absolute; left:0; right:0; height:2px; background:currentColor; }
+.hamburger .icon::before { top:-6px; }
+.hamburger .icon::after { top:6px; }
+.nav-drawer { position:fixed; inset:0 0 0 auto; width:320px; max-width:90vw; background:rgba(17,24,39,0.98); color:#e5e7eb; border-left:1px solid rgba(255,255,255,0.08); transform:translateX(100%); transition:transform .25s ease; z-index:9999; display:flex; flex-direction:column; }
+.nav-drawer.open { transform:translateX(0); }
+.nav-drawer header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.nav-drawer .list { padding:8px 0; overflow:auto; }
+.nav-drawer .list a { display:flex; align-items:center; gap:10px; padding:10px 16px; color:inherit; text-decoration:none; border-bottom:1px solid rgba(255,255,255,0.06); }
+.nav-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.4); backdrop-filter: blur(2px); opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:9998; }
+.nav-backdrop.show { opacity:1; pointer-events:auto; }
+@media(min-width:900px){ .hamburger{ display:inline-flex; } }
+</style></head>
+<body>
+<!-- immersive background -->
+<canvas id="stars"></canvas>
+<div id="scanlines"></div>
+<div class="gridlines"></div>
+<header>
+<div class="h-wrap">
+<div class="brand">
+<span class="neon">NEBULA OPS</span>
+<span class="sig">PROIZVODNJA • HOLO‑CONSOLE</span>
+</div>
+<div class="tabs">
+<button class="tab tab-active" id="tabUnos">🛠 NOVI ZAHTEV</button>
+<button class="tab" id="tabPregled">📚 PREGLED</button>
+<span class="chip">Poslednji broj: <b id="navLastNo">0000</b></span>
+</div>
+</div>
+<button class="hamburger" id="hamburgerBtn"><span class="icon"></span><span>Meni</span></button></header>
+<div class="wrap">
+<div class="deck">
+<div class="col-4 stat glow"><h4>Ukupno naloga</h4><div class="big" id="statTotal">0</div></div>
+<div class="col-4 stat glow"><h4>Danas kreirano</h4><div class="big" id="statToday">0</div></div>
+<div class="col-4 stat glow"><h4>Artikli učitani</h4><div class="big" id="statArtikli">0</div></div>
+</div>
+<!-- SEKCIJA UNOS -->
+<div class="card glow" id="sekcija-unos" style="margin-top:16px">
+<div class="deck">
+<div class="col-6">
+<label>Firma</label>
+<div class="ac-wrap"><input id="firma" placeholder="počni da kucaš naziv… (autocomplete)"/ list="firmList"><div class="ac-menu" id="acList"></div></div>
+<datalist id="firmList"></datalist>
+</div>
+<div class="col-6">
+<label>Adresa projekta</label>
+<input id="adresa" placeholder="npr. Banovo Brdo Residence"/>
+</div>
+<div class="col-4">
+<label>Artikal</label>
+<div class="ac2-wrap"><input id="artikalInput" placeholder="kucaj šifru ili naziv (sifra/dimenzije) …"/><div id="acArtikal"></div></div>
+<select id="artikalSelect" style="display:none"></select>
+</div>
+<div class="col-4">
+<label>Količina</label>
+<input id="kolicina" step="0.001" type="number" value="1"/>
+</div>
+<div class="col-4">
+<label>Napomena (stavka)</label>
+<input id="napomena" placeholder="npr. polirati, paletirati…"/>
+</div>
+<div class="col-12 row">
+<button class="ok" id="addItem" style="width:auto">➕ Dodaj u zahtev</button>
+<span class="muted">Artikli: <b>artikli.xlsx</b>. Ako se ne učita automatski, izaberi fajl:</span> • <span class="muted">Firme (CSV): </span><input accept=".csv" id="companiesInput" style="max-width:220px" type="file"/> <span class="pill pulse" id="companiesStatus">nema baze firmi</span>
+<input accept=".xlsx" id="excelInput" style="max-width:260px" type="file"/>
+<span class="pill pulse" id="excelStatus">čekam podatke…</span>
+</div>
+</div>
+<div style="height:10px"></div>
+<div class="separator"></div>
+<h3 style="margin:6px 0 10px 0">Stavke zahteva</h3>
+<table id="stavkeTable">
+<thead><tr>
+<th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th>Napomena</th><th class="right"></th>
+</tr></thead>
+<tbody></tbody>
+<tfoot>
+<tr><th class="right" colspan="3">Ukupno stavki:</th><th class="right" id="ukupnoCell">0</th><th></th><th></th></tr>
+</tfoot>
+</table>
+<div class="row" style="margin-top:12px">
+<button class="primary" id="sacuvajNalog" style="width:auto">💾 Sačuvaj nalog (Ctrl+S)</button>
+<button class="secondary" id="ocisti" style="width:auto">🧹 Očisti formu</button>
+<span class="muted">Nalog dobija automatski broj i čuva se lokalno.</span>
+</div>
+</div>
+<!-- SEKCIJA PREGLED -->
+<div class="hidden" id="sekcija-pregled" style="margin-top:16px">
+<div class="card glow">
+<div class="row" style="justify-content:space-between; gap:12px">
+<div class="ac-wrap"><input id="filterInput" placeholder="Pretraga po firmi, adresi ili broju ( / )"/ list="firmSearchList"><div id="acFilter" class="ac-menu" hidden></div></div>
+<datalist id="firmSearchList"></datalist>
+<div class="row">
+<button class="secondary" id="osveziPregled" style="width:auto">🔄 Osveži</button>
+<button class="ghost" id="exportCSV" style="width:auto">⬇️ Izvezi CSV</button>
+<button class="ghost" id="printBtn" style="width:auto">🖨️ Štampa</button>
+</div>
+</div>
+<div style="height:10px"></div>
+<table id="pregledTable">
+<thead>
+<tr>
+<th class="nowrap" data-sort="broj">Broj ⬍</th>
+<th data-sort="firma">Firma ⬍</th>
+<th data-sort="adresa">Adresa ⬍</th>
+<th class="nowrap" data-sort="vreme">Kreirano ⬍</th>
+<th class="right nowrap"># stavki</th>
+<th class="right nowrap">Akcije</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- MODAL -->
+<div class="modal-back" id="modalBack">
+<div class="modal">
+<div class="row" style="justify-content:space-between">
+<div class="row" style="gap:8px">
+<span class="pill">Detalji naloga</span>
+<span class="chip">#<b id="detBroj"></b></span>
+</div>
+<button class="secondary" id="closeModal" style="width:auto">Zatvori</button>
+</div>
+<div class="row" style="gap:14px;flex-wrap:wrap;margin:8px 0 10px 0">
+<span class="pill">Firma: <b id="detFirma"></b></span>
+<span class="pill">Adresa: <b id="detAdresa"></b></span>
+<span class="pill">Kreirano: <b id="detVreme"></b></span>
+</div>
+<table id="detTabela">
+<thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th>Napomena</th></tr></thead>
+<tbody></tbody>
+</table>
+</div>
+</div>
+<script>
+    /* === STARFIELD === */
+    const c = document.getElementById('stars'); const x = c.getContext('2d');
+    function resize(){ c.width = innerWidth; c.height = innerHeight; }
+    addEventListener('resize', resize); resize();
+    const N=200, stars=[];
+    for(let i=0;i<N;i++){ stars.push({x:Math.random()*c.width, y:Math.random()*c.height, z:Math.random()*2+0.5, r:Math.random()*1.6+0.2}); }
+    let mx=0,my=0; addEventListener('pointermove', e=>{ mx = (e.clientX/innerWidth - .5); my = (e.clientY/innerHeight - .5); });
+    function draw(){
+      x.clearRect(0,0,c.width,c.height);
+      for(const s of stars){
+        s.x += (s.z*0.15) + mx*0.6; if(s.x>c.width+10) s.x=-10;
+        s.y += my*0.4; if(s.y<-10) s.y=c.height+10; if(s.y>c.height+10) s.y=-10;
+        x.beginPath(); x.arc(s.x,s.y,s.r,0,Math.PI*2);
+        const g = x.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*3);
+        g.addColorStop(0,'rgba(124,58,237,.9)'); g.addColorStop(1,'rgba(124,58,237,0)');
+        x.fillStyle = g; x.fill();
+      }
+      requestAnimationFrame(draw);
+    } draw();
+
+    /* === APP LOGIC === */
+    const EXCEL_FILE = 'artikli.xlsx';
+    let ARTIKLI = [];
+    let STAVKE = [];
+
+    const LS_ORDERS = 'proizvodnja_nalozi_v1';
+    const LS_LASTNO = 'proizvodnja_lastno_v1';
+
+    const q = sel => document.querySelector(sel);
+
+    function pad(n){return String(n).padStart(4,'0');}
+    function getOrders(){ try{return JSON.parse(localStorage.getItem(LS_ORDERS))||[]}catch{return[]} }
+    function setOrders(arr){ localStorage.setItem(LS_ORDERS, JSON.stringify(arr)); }
+    function getLastNo(){ return Number(localStorage.getItem(LS_LASTNO)||'0'); }
+    function setLastNo(n){
+      localStorage.setItem(LS_LASTNO, String(n));
+      q('#navLastNo').textContent = pad(n);
+    }
+    function updateStats(){
+      const orders = getOrders();
+      q('#statTotal').textContent = orders.length;
+      const today = new Date().toISOString().slice(0,10);
+      const t = orders.filter(o => (o.vreme||'').slice(0,10) === today).length;
+      q('#statToday').textContent = t;
+      q('#statArtikli').textContent = ARTIKLI.length;
+    }
+
+    function setExcelStatus(txt, ok=true){
+      const el = q('#excelStatus'); if(!el) return;
+      el.textContent = txt;
+      el.style.background = ok ? '#0a2a22' : '#2a0a0a';
+      el.style.border = '1px solid ' + (ok ? '#14532d' : '#7f1d1d');
+      el.style.color = ok ? '#86efac' : '#fecaca';
+    }
+
+    async function parseWorkbook(ab){
+      const wb = XLSX.read(ab, { type:'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      ARTIKLI = data.map(r => ({
+        sifra: r.sifra || r.Sifra || r.SIFRA,
+        duzina: r.duzina || r.Duzina || r.DUŽINA || r.DUZINA,
+        sirina: r.sirina || r.Sirina || r.ŠIRINA || r.SIRINA,
+        debljina: r.debljina || r.Debljina || r.DEBLJINA,
+        jedinica: r.jedinica || r.JM || r.jm || r.Jedinica,
+        dimenzije: r.dimenzije || r.Dimenzije || `${r.duzina||r.Duzina||''}x${r.sirina||r.Sirina||''}x${r.debljina||r.Debljina||''}`.replace(/^x+$/,'').replace(/x$/,''),
+        m2: r.m2 || r.M2,
+        m1_po_m2: r.m1_po_m2 || r.M1_po_M2 || r.M1poM2
+      })).filter(a => a.sifra);
+      populateSelect();
+      setExcelStatus(`artikli: ${ARTIKLI.length}`, ARTIKLI.length>0);
+      updateStats();
+    }
+
+    async function loadExcel(){
+      try{
+        const res = await fetch(EXCEL_FILE, { cache:'no-store' });
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const ab = await res.arrayBuffer();
+        await parseWorkbook(ab);
+      }catch(e){
+        setExcelStatus('nije učitao (izaberi ručno)', false);
+        console.warn('Excel fetch fallback:', e);
+      }
+    }
+
+    function populateSelect(){
+      const sel = q('#artikalSelect');
+      sel.innerHTML = '';
+      ARTIKLI.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.sifra;
+        opt.textContent = `${a.sifra} – ${a.dimenzije} (${a.jedinica})`;
+        sel.appendChild(opt);
+      });
+      q('#addItem').disabled = ARTIKLI.length===0;
+    }
+
+    function renderStavke(){
+      const tb = q('#stavkeTable tbody');
+      tb.innerHTML='';
+      let ukupno = 0;
+      STAVKE.forEach((s,idx)=>{
+        ukupno += Number(s.kolicina)||0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.sifra}</td>
+          <td>${s.dimenzije}</td>
+          <td>${s.jedinica}</td>
+          <td class="right">${Number(s.kolicina).toFixed(3)}</td>
+          <td>${s.napomena||''}</td>
+          <td class="right"><button class="danger" data-idx="${idx}" style="width:auto">Ukloni</button></td>`;
+        tb.appendChild(tr);
+      });
+      q('#ukupnoCell').textContent = ukupno.toFixed(3);
+      tb.querySelectorAll('button[data-idx]').forEach(b=>{
+        b.addEventListener('click', e=>{ const i=Number(b.getAttribute('data-idx')); STAVKE.splice(i,1); renderStavke(); });
+      });
+    }
+
+    // Add item
+    document.addEventListener('click', (e)=>{
+      if(e.target.id==='addItem'){
+        const sifra = q('#artikalSelect').value;
+        const kolicina = q('#kolicina').value;
+        const napomena = q('#napomena').value.trim();
+        const a = ARTIKLI.find(x=>x.sifra===sifra);
+        if(!a){ notify('Odaberi artikal', true); return; }
+        if(!kolicina || Number(kolicina)<=0){ notify('Unesi količinu', true); return; }
+        STAVKE.push({ ...a, kolicina:Number(kolicina), napomena });
+        renderStavke();
+        q('#napomena').value='';
+      }
+    });
+
+    // Clear
+    q('#ocisti').addEventListener('click', ()=>{
+      STAVKE=[];
+      q('#firma').value='';
+      q('#adresa').value='';
+      renderStavke();
+    });
+
+    // Save
+    q('#sacuvajNalog').addEventListener('click', saveOrder);
+    function saveOrder(){
+      const firma = q('#firma').value.trim();
+      const adresa = q('#adresa').value.trim();
+      if(!firma || !adresa){ notify('Unesi firmu i adresu projekta', true); return; }
+      if(STAVKE.length===0){ notify('Dodaj bar jednu stavku', true); return; }
+      const next = getLastNo()+1;
+      const broj = pad(next);
+      const nalog = {
+        broj, firma, adresa,
+        vreme: new Date().toISOString(),
+        stavke: STAVKE.map(s=>({sifra:s.sifra, dimenzije:s.dimenzije, jedinica:s.jedinica, kolicina:s.kolicina, napomena:s.napomena||''}))
+      };
+      const orders = getOrders();
+      orders.push(nalog);
+      setOrders(orders);
+      setLastNo(next);
+      STAVKE=[]; renderStavke(); updateStats(); renderPregled();
+      notify('Nalog sačuvan: #'+broj);
+      // Reset forme posle snimanja
+      q('#firma').value = '';
+      q('#adresa').value = '';
+      q('#artikalInput').value = '';
+      q('#artikalSelect').value = '';
+      q('#kolicina').value = 1;
+      q('#napomena').value = '';
+      STAVKE = [];
+      renderStavke();
+
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown',(e)=>{
+      if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){ e.preventDefault(); saveOrder(); }
+      if(e.key==='/'){ const fi=q('#filterInput'); if(fi && !fi.matches(':focus')){ fi.focus(); e.preventDefault(); } }
+      if(e.key==='F2'){ setTab('pregled'); }
+    });
+
+    // Tabs
+    q('#tabUnos').addEventListener('click', ()=>setTab('unos'));
+    q('#tabPregled').addEventListener('click', ()=>setTab('pregled'));
+    function setTab(which){
+      q('#sekcija-unos').classList.toggle('hidden', which!=='unos');
+      q('#sekcija-pregled').classList.toggle('hidden', which!=='pregled');
+      q('#tabUnos').classList.toggle('tab-active', which==='unos');
+      q('#tabPregled').classList.toggle('tab-active', which==='pregled');
+      if(which==='pregled'){ renderPregled(); }
+    }
+
+    // Pregled
+    
+function renderPregled(){
+  const tb = document.querySelector('#pregledTable tbody');
+  if(!tb) return;
+  tb.innerHTML='';
+  const filterEl = document.querySelector('#filterInput');
+  const filter = (filterEl && filterEl.value ? filterEl.value : '').toLowerCase();
+
+  const tryFetch = (url) => fetch(url + (url.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'})
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); });
+
+  function parseCSV(text){
+    text = text.replace(/^\uFEFF/, '');
+    const first = text.split(/\r?\n/,1)[0] || '';
+    const delim = first.includes(';') ? ';' : ',';
+    const rows = [];
+    let i=0, field='', row=[], inQuotes=false;
+    while(i<text.length){
+      const ch = text[i];
+      if(ch === '"'){
+        if(inQuotes && text[i+1] === '"'){ field+='"'; i+=2; continue; }
+        inQuotes = !inQuotes; i++; continue;
+      }
+      if(!inQuotes && (ch === '\n' || ch === '\r')){
+        if(ch === '\r' && text[i+1]==='\n') i++;
+        row.push(field); field='';
+        if(row.length>1 || (row.length===1 && row[0]!=='')) rows.push(row);
+        row=[]; i++; continue;
+      }
+      if(!inQuotes && ch === delim){
+        row.push(field); field=''; i++; continue;
+      }
+      field += ch; i++;
+    }
+    if(field.length || row.length){ row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function normalizeHeader(h){
+    return (h||'').toString().trim().toLowerCase();
+  }
+
+  function renderFromText(text){
+    const rows = parseCSV(text.trim());
+    if(!rows.length) return;
+    const header = rows[0].map(normalizeHeader);
+    const idx = (name)=> header.indexOf(normalizeHeader(name));
+    const iBroj   = idx('broj')>=0 ? idx('broj') : 0;
+    const iFirma  = idx('firma');
+    const iAdresa = idx('adresa');
+    const iVreme  = idx('vreme');
+    const iStavke = idx('stavke');
+
+    const orders = rows.slice(1).map(cols=>{
+      let stavke=[];
+      const rawStavke = iStavke>=0 ? (cols[iStavke]||'') : '';
+      if(rawStavke){ try{ stavke = JSON.parse(rawStavke); }catch(_){ stavke=[]; } }
+      return {
+        broj:   (cols[iBroj]||'').trim(),
+        firma:  iFirma>=0  ? (cols[iFirma]||'').trim()  : '',
+        adresa: iAdresa>=0 ? (cols[iAdresa]||'').trim() : '',
+        vreme:  iVreme>=0  ? (cols[iVreme]||'').trim()  : '',
+        stavke
+      };
+    }).filter(n=>n.broj);
+
+    const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+    filtered.sort(_sorter.current);
+
+    filtered.forEach(n=>{
+      const tr = document.createElement('tr');
+      const dt = n.vreme ? new Date(n.vreme) : null;
+      tr.innerHTML = '\
+        <td class="nowrap"><b>'+ (n.broj||'') +'</b></td>\
+        <td>'+ (n.firma||'') +'</td>\
+        <td>'+ (n.adresa||'') +'</td>\
+        <td class="nowrap">'+ (dt ? dt.toLocaleString() : '') +'</td>\
+        <td class="right">'+ ((n.stavke||[]).length) +'</td>\
+        <td class="right"><button class="secondary" data-open="'+ (n.broj||'') +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  // Try relative and absolute CSV
+  tryFetch('data/zahtevi.csv')
+    .then(renderFromText)
+    .catch(()=> tryFetch('/data/zahtevi.csv').then(renderFromText).catch(()=>{
+      // Final fallback: localStorage
+      try{
+        const orders = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]')||[];
+        const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+        filtered.sort(_sorter.current);
+        filtered.forEach(n=>{
+          const tr = document.createElement('tr');
+          tr.innerHTML = '\
+            <td class="nowrap"><b>'+ n.broj +'</b></td>\
+            <td>'+ (n.firma||'') +'</td>\
+            <td>'+ (n.adresa||'') +'</td>\
+            <td class="nowrap">'+ new Date(n.vreme).toLocaleString() +'</td>\
+            <td class="right">'+ ((n.stavke||[]).length) +'</td>\
+            <td class="right"><button class="secondary" data-open="'+ n.broj +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
+          tb.appendChild(tr);
+        });
+      }catch(_){}
+    }));
+}
+
+
+    // Sort logic
+    const _sorter = {
+      by:'broj', dir:1,
+      current:(a,b)=> String(a.broj).localeCompare(String(b.broj))*_sorter.dir
+    };
+    document.querySelectorAll('#pregledTable thead th[data-sort]').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const key = th.getAttribute('data-sort');
+        if(_sorter.by===key){ _sorter.dir*=-1; } else { _sorter.by=key; _sorter.dir=1; }
+        _sorter.current = (a,b)=> (a[_sorter.by]||'').toString().localeCompare((b[_sorter.by]||'').toString()) * _sorter.dir;
+        renderPregled();
+      });
+    });
+
+    // Open modal details
+    document.addEventListener('click', (e)=>{
+      const broj = e.target.getAttribute && e.target.getAttribute('data-open');
+      if(!broj) return;
+      const nalog = getOrders().find(n=>n.broj===broj);
+      if(!nalog) return;
+      showModal(nalog);
+    });
+    function showModal(nalog){
+      q('#detBroj').textContent = nalog.broj;
+      q('#detFirma').textContent = nalog.firma;
+      q('#detAdresa').textContent = nalog.adresa;
+      q('#detVreme').textContent = new Date(nalog.vreme).toLocaleString();
+      const tb = q('#detTabela tbody'); tb.innerHTML='';
+      nalog.stavke.forEach(s=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${s.sifra}</td><td>${s.dimenzije}</td><td>${s.jedinica}</td><td class="right">${Number(s.kolicina).toFixed(3)}</td><td>${s.napomena||''}</td>`;
+        tb.appendChild(tr);
+      });
+      q('#modalBack').style.display='flex';
+    }
+    q('#closeModal').addEventListener('click', ()=>q('#modalBack').style.display='none');
+    q('#modalBack').addEventListener('click', (e)=>{ if(e.target.id==='modalBack') e.currentTarget.style.display='none'; });
+
+    // Tools
+    q('#osveziPregled').addEventListener('click', renderPregled);
+    q('#filterInput').addEventListener('input', renderPregled);
+    q('#exportCSV').addEventListener('click', exportCSV);
+    q('#printBtn').addEventListener('click', ()=>window.print());
+
+    function exportCSV(){
+      const rows = [['Broj','Firma','Adresa','Vreme','#stavki']];
+      getOrders().forEach(n=>rows.push([n.broj,n.firma,n.adresa,new Date(n.vreme).toLocaleString(), (n.stavke||[]).length]));
+      const csv = rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'nalozi.csv'; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Excel manual input
+    q('#excelInput').addEventListener('change',(ev)=>{
+      const f = ev.target.files && ev.target.files[0]; if(!f) return;
+      const fr = new FileReader();
+      fr.onload = async (e)=>{ await parseWorkbook(e.target.result); };
+      fr.readAsArrayBuffer(f);
+    });
+
+    function notify(msg, error=false){
+      // quick inline toast using header chip text
+      const chip = document.querySelector('.chip');
+      const prev = chip.textContent;
+      chip.textContent = msg;
+      chip.style.background = error ? 'rgba(239,68,68,.18)' : 'rgba(34,197,94,.18)';
+      chip.style.borderColor = error ? 'rgba(239,68,68,.35)' : 'rgba(34,197,94,.35)';
+      setTimeout(()=>{ chip.textContent = prev; chip.style.background='rgba(255,255,255,.08)'; chip.style.borderColor='rgba(255,255,255,.14)'; }, 2200);
+    }
+
+    
+    /* === FIRME AUTOCOMPLETE (lokalni CSV) ===
+       Očekivan CSV: header sa 'naziv' ili 'name' (opciono 'pib','mb').
+       Primer format:
+       naziv,pib,mb
+       "ENERGOGROUP DOO","123456789","07123456"
+    */
+    let COMPANIES = [];
+    const compStatus = document.getElementById('companiesStatus');
+
+    function setCompaniesStatus(txt, ok=false){
+      if(!compStatus) return;
+      compStatus.textContent = txt;
+      compStatus.style.background = ok ? '#0a2a22' : '#2a0a0a';
+      compStatus.style.border = '1px solid ' + (ok ? '#14532d' : '#7f1d1d');
+      compStatus.style.color = ok ? '#86efac' : '#fecaca';
+    }
+
+    function parseCSV(text){
+      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
+      if(lines.length===0) return [];
+      const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
+      const idxNaziv = header.findIndex(h => ['naziv','name','company','firma'].includes(h));
+      const idxPIB   = header.findIndex(h => ['pib','tax_id','tax','pibv'].includes(h));
+      const idxMB    = header.findIndex(h => ['mb','matični','maticni','registration','reg'].includes(h));
+      const out = [];
+      for(let i=1;i<lines.length;i++){
+        const row = lines[i].split(','); if(row.length===0) continue;
+        const naziv = (row[idxNaziv]||'').replace(/^"|"$/g,'');
+        if(!naziv) continue;
+        const pib = (idxPIB>=0? row[idxPIB] : '').replace(/^"|"$/g,'');
+        const mb  = (idxMB>=0? row[idxMB]  : '').replace(/^"|"$/g,'');
+        out.push({ naziv, pib, mb });
+      }
+      return out;
+    }
+
+    function buildDatalistOptions(query){
+      const dl = document.getElementById('firmList');
+      if(!dl) return;
+      dl.innerHTML='';
+      if(!query || query.length<2){ return; }
+      const ql = query.toLowerCase();
+      const matches = COMPANIES.filter(c => c.naziv && c.naziv.toLowerCase().includes(ql)).slice(0, 20);
+      matches.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.naziv;
+        opt.label = c.pib ? (c.naziv + ' • PIB: ' + c.pib) : c.naziv;
+        dl.appendChild(opt);
+      });
+    }
+
+    document.getElementById('companiesInput')?.addEventListener('change', (ev)=>{
+      const f = ev.target.files && ev.target.files[0]; if(!f) return;
+      const fr = new FileReader();
+      fr.onload = (e)=>{
+        const text = e.target.result;
+        try{
+          COMPANIES = parseCSV(text);
+          setCompaniesStatus('firme: ' + COMPANIES.length, COMPANIES.length>0);
+        }catch(err){
+          console.warn('CSV parse error', err);
+          setCompaniesStatus('greška pri učitavanju CSV', false);
+        }
+      };
+      fr.readAsText(f, 'utf-8');
+    });
+
+    document.getElementById('firma')?.addEventListener('input', (e)=>{
+      buildDatalistOptions(e.target.value);
+    });
+
+    // Kada korisnik izgubi fokus, ako naziv tačno postoji u bazi, možemo kasnije auto-popuniti dodatna polja.
+    document.getElementById('firma')?.addEventListener('change', (e)=>{
+      const v = e.target.value;
+      const hit = COMPANIES.find(c => c.naziv === v);
+      if(hit){
+        setCompaniesStatus('izabrano: ' + hit.naziv + (hit.pib? ' (PIB '+hit.pib+')':''), true);
+      }
+    });
+
+    /* === MEMORIJA FIRMI + custom dropdown (strogi prefiks) === */
+    const LS_COMPANIES = 'proizvodnja_firme_v1';
+    function getCompanies(){
+      try { return JSON.parse(localStorage.getItem(LS_COMPANIES)) || []; } catch { return []; }
+    }
+    function setCompanies(list){
+      const uniq = Array.from(new Set(list.filter(Boolean).map(s=>s.trim()).filter(s=>s.length)));
+      localStorage.setItem(LS_COMPANIES, JSON.stringify(uniq));
+      return uniq;
+    }
+    function rebuildCompaniesFromOrders(){
+      try {
+        const orders = typeof getOrders === 'function' ? getOrders() : [];
+        const names = orders.map(o=>o.firma).filter(Boolean);
+        setCompanies(getCompanies().concat(names));
+      } catch(e) {}
+    }
+    function norm(s){
+      return (s||'').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s');
+    }
+    const firmaInput = document.getElementById('firma');
+    const acList = document.getElementById('acList');
+    let acItems = [];
+    let acIdx = -1;
+
+    function hideAC(){ if(acList){ acList.style.display='none'; acList.innerHTML=''; acIdx=-1; acItems=[]; } }
+    function showAC(items){
+      if(!acList) return;
+      acList.innerHTML='';
+      acItems = items.slice(0,10);
+      acItems.forEach((name,i)=>{
+        const div = document.createElement('div');
+        div.className = 'ac-item' + (i===0?' active':'');
+        if(i===0) acIdx=0;
+        const t = document.createElement('div'); t.className='ac-title'; t.textContent = name;
+        const s = document.createElement('div'); s.className='ac-sub'; s.textContent = 'ranije uneto';
+        div.append(t); div.append(s);
+        div.addEventListener('click', ()=> chooseAC(i));
+        acList.append(div);
+      });
+      acList.style.display = acItems.length ? 'block' : 'none';
+    }
+    function chooseAC(i){
+      if(!firmaInput) return;
+      const name = acItems[i];
+      if(name){ firmaInput.value = name; }
+      hideAC();
+    }
+    function updateAC(query){
+      const qn = norm(query||'');
+      if(!qn){ hideAC(); return; }
+      const items = getCompanies().filter(n => norm(n).startsWith(qn));
+      if(items.length){ showAC(items); } else { hideAC(); }
+    }
+
+    if(firmaInput){
+      firmaInput.setAttribute('autocomplete','off');
+      firmaInput.addEventListener('input', e=> updateAC(e.target.value));
+      firmaInput.addEventListener('focus', e=> updateAC(e.target.value));
+      firmaInput.addEventListener('keydown', e=>{
+        if(acList.style.display!=='block') return;
+        const nodes = Array.from(acList.querySelectorAll('.ac-item'));
+        if(!nodes.length) return;
+        if(e.key==='ArrowDown'){ e.preventDefault(); acIdx=(acIdx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===acIdx)); }
+        if(e.key==='ArrowUp'){ e.preventDefault(); acIdx=(acIdx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===acIdx)); }
+        if(e.key==='Enter'){ e.preventDefault(); if(acIdx>=0) chooseAC(acIdx); }
+        if(e.key==='Escape'){ hideAC(); }
+      });
+    }
+    document.addEventListener('click', (e)=>{
+      if(!acList) return;
+      if(e.target===firmaInput) return;
+      if(!acList.contains(e.target)) hideAC();
+    });
+
+    // Hook posle snimanja: upiši firmu u memoriju
+    (function wrapSaveOrder(){
+      if (typeof saveOrder !== 'function') return;
+      const orig = saveOrder;
+      window.saveOrder = function(){
+        const name = (document.getElementById('firma')?.value||'').trim();
+        orig();
+        if (name) setCompanies(getCompanies().concat([name]));
+      };
+    })();
+
+
+    /* === Artikal: typeahead iz Excel ARTIKLI (substring match) === */
+    const artInput = document.getElementById('artikalInput');
+    const acArtikal = document.getElementById('acArtikal');
+    let ac2Items = [];
+    let ac2Idx = -1;
+
+    function hideAC2(){ if(acArtikal){ acArtikal.style.display='none'; acArtikal.innerHTML=''; ac2Idx=-1; ac2Items=[]; } }
+    function chooseAC2(i){
+      const a = ac2Items[i]; if(!a) return;
+      // upiši u input i sinhronizuj hidden select po šifri
+      artInput.value = `${a.sifra} – ${a.dimenzije} (${a.jedinica||''})`;
+      const sel = document.getElementById('artikalSelect');
+      if(sel){
+        sel.value = a.sifra;
+        // ako ne postoji opcija, dodaj je (za svaki slučaj)
+        if(!Array.from(sel.options).some(o=>o.value===a.sifra)){
+          const opt = document.createElement('option');
+          opt.value = a.sifra; opt.textContent = `${a.sifra} – ${a.dimenzije} (${a.jedinica||''})`;
+          sel.appendChild(opt);
+        }
+      }
+      hideAC2();
+      // fokus na količinu da ubrza unos
+      document.getElementById('kolicina')?.focus();
+    }
+    function showAC2(list){
+      if(!acArtikal) return;
+      acArtikal.innerHTML='';
+      ac2Items = list.slice(0, 20);
+      ac2Items.forEach((a,i)=>{
+        const div = document.createElement('div');
+        div.className = 'ac2-item' + (i===0?' active':'');
+        if(i===0) ac2Idx = 0;
+        const main = document.createElement('div'); main.className='ac2-main';
+        const t = document.createElement('div'); t.className='ac2-title'; t.textContent = a.sifra || '';
+        const s = document.createElement('div'); s.className='ac2-sub'; s.textContent = a.dimenzije || '';
+        main.append(t); main.append(s);
+        const u = document.createElement('div'); u.className='ac2-unit'; u.textContent = a.jedinica || '';
+        div.append(main); div.append(u);
+        div.addEventListener('click', ()=> chooseAC2(i));
+        acArtikal.append(div);
+      });
+      acArtikal.style.display = ac2Items.length ? 'block' : 'none';
+    }
+    function normTxt(s){
+      return (s||'').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+        .replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s');
+    }
+    function updateAC2(q){
+      const nq = normTxt(q||'');
+      if(!nq){ hideAC2(); return; }
+      // pretraži po sifra ili dimenzije – substring match
+      const list = (ARTIKLI||[]).filter(a => {
+        const hay = `${a.sifra||''} ${a.dimenzije||''}`;
+        return normTxt(hay).includes(nq);
+      });
+      if(list.length){ showAC2(list); } else { hideAC2(); }
+    }
+
+    if(artInput){
+      artInput.setAttribute('autocomplete','off');
+      artInput.addEventListener('input', e=> updateAC2(e.target.value));
+      artInput.addEventListener('focus', e=> updateAC2(e.target.value));
+      artInput.addEventListener('keydown', e=>{
+        if(acArtikal.style.display!=='block') return;
+        const nodes = Array.from(acArtikal.querySelectorAll('.ac2-item'));
+        if(!nodes.length) return;
+        if(e.key==='ArrowDown'){ e.preventDefault(); ac2Idx=(ac2Idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===ac2Idx)); }
+        if(e.key==='ArrowUp'){ e.preventDefault(); ac2Idx=(ac2Idx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===ac2Idx)); }
+        if(e.key==='Enter'){ e.preventDefault(); if(ac2Idx>=0) chooseAC2(ac2Idx); }
+        if(e.key==='Escape'){ hideAC2(); }
+      });
+    }
+    document.addEventListener('click', (e)=>{
+      if(!acArtikal) return;
+      if(e.target===artInput) return;
+      if(!acArtikal.contains(e.target)) hideAC2();
+    });
+
+    // Posle učitavanja Excel-a popuni skriveni select (radi kompatibilnosti sa postojećim addItem logikom)
+    const _orig_populateSelect2 = typeof populateSelect === 'function' ? populateSelect : null;
+    populateSelect = function(){
+      if(_orig_populateSelect2) _orig_populateSelect2();
+      const sel = document.getElementById('artikalSelect');
+      if(sel){
+        sel.innerHTML='';
+        (ARTIKLI||[]).forEach(a=>{
+          const opt = document.createElement('option');
+          opt.value = a.sifra; opt.textContent = `${a.sifra} – ${a.dimenzije} (${a.jedinica||''})`;
+          sel.appendChild(opt);
+        });
+      }
+      // Ako vec ima nesto u inputu, osveži predloge
+      if(artInput && artInput.value) updateAC2(artInput.value);
+    };
+
+
+// === Edit nalog (Pregled) — bez data-edit, čita broj iz reda ===
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest && e.target.closest('button.edit-btn');
+  if(!btn) return;
+  const tr = btn.closest('tr');
+  let broj = '';
+  try{
+    // pokušaj preko dugmeta "Otvori"
+    const openBtn = tr.querySelector('button[data-open]');
+    if(openBtn) broj = openBtn.getAttribute('data-open') || '';
+    if(!broj){
+      const bcell = tr.querySelector('td b');
+      if(bcell) broj = bcell.textContent.trim();
+    }
+  }catch(_){}
+  if(!broj){ notify('Broj naloga nije pronađen', true); return; }
+  const fromCache = (window._ORDERS_CACHE||[]).find(n=>String(n.broj)===String(broj));
+  const fromLocal = (typeof getOrders==='function') ? getOrders().find(n=>String(n.broj)===String(broj)) : null;
+  const nalog = fromLocal || fromCache;
+  if(!nalog){ notify('Nalog nije pronađen', true); return; }
+  openEditModal(JSON.parse(JSON.stringify(nalog)));
+});
+function openEditModal(nalog){
+  const back = document.getElementById('modalBack');
+  const modal = back.querySelector('.modal');
+  modal.innerHTML = `
+    <div class="row" style="justify-content:space-between">
+      <div class="row" style="gap:8px">
+        <span class="pill">Izmena naloga</span>
+        <span class="chip">#<b>${nalog.broj}</b></span>
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="secondary" id="cancelEdit" style="width:auto">Otkaži</button>
+        <button class="ok" id="saveEdit" style="width:auto">Sačuvaj izmene</button>
+      </div>
+    </div>
+    <div class="row" style="gap:14px;flex-wrap:wrap;margin:8px 0 10px 0">
+      <label class="pill" style="display:flex;align-items:center;gap:8px">Firma:
+        <input id="editFirma" value="${nalog.firma||''}" style="min-width:320px"/>
+      </label>
+      <label class="pill" style="display:flex;align-items:center;gap:8px">Adresa:
+        <input id="editAdresa" value="${nalog.adresa||''}" style="min-width:320px"/>
+      </label>
+    </div>
+    <table id="detTabela">
+      <thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Količina</th><th>Napomena</th><th class="right"></th></tr></thead>
+      <tbody></tbody>
+      <tfoot><tr><td colspan="6"><button class="ghost" id="addLine" style="width:auto">➕ Dodaj stavku</button></td></tr></tfoot>
+    </table>
+  `;
+  back.style.display = 'flex';
+  const tb = modal.querySelector('#detTabela tbody');
+
+  function renderLines(){
+    tb.innerHTML='';
+    (nalog.stavke||[]).forEach((s,i)=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input value="${s.sifra||''}" data-k="sifra"/></td>
+        <td><input value="${s.dimenzije||''}" data-k="dimenzije"/></td>
+        <td><input value="${s.jedinica||''}" data-k="jedinica" style="max-width:80px"/></td>
+        <td class="right"><input type="number" step="0.001" value="${Number(s.kolicina||0)}" data-k="kolicina" style="max-width:120px"/></td>
+        <td><input value="${s.napomena||''}" data-k="napomena"/></td>
+        <td class="right"><button class="danger" data-del="${i}" style="width:auto">Ukloni</button></td>`;
+      tb.appendChild(tr);
+    });
+  }
+  renderLines();
+
+  tb.addEventListener('input', (ev)=>{
+    const inp = ev.target;
+    const tr = inp.closest('tr');
+    const idx = Array.from(tb.children).indexOf(tr);
+    const key = inp.getAttribute('data-k');
+    if(idx>=0 && key){ nalog.stavke[idx][key] = (key==='kolicina') ? Number(inp.value||0) : inp.value; }
+  });
+  tb.addEventListener('click', (ev)=>{
+    const del = ev.target.getAttribute && ev.target.getAttribute('data-del');
+    if(del!=null){ nalog.stavke.splice(Number(del),1); renderLines(); }
+  });
+  modal.querySelector('#addLine').addEventListener('click', ()=>{
+    (nalog.stavke = nalog.stavke||[]).push({sifra:'',dimenzije:'',jedinica:'',kolicina:0,napomena:''});
+    renderLines();
+  });
+
+  modal.querySelector('#cancelEdit').addEventListener('click', ()=> back.style.display='none');
+  modal.querySelector('#saveEdit').addEventListener('click', ()=> saveEditedNalog(nalog));
+}
+
+function saveEditedNalog(nalog){
+  try{
+    nalog.firma = document.getElementById('editFirma')?.value || nalog.firma;
+    nalog.adresa = document.getElementById('editAdresa')?.value || nalog.adresa;
+
+    const orders = getOrders();
+    const i = orders.findIndex(n=>String(n.broj)===String(nalog.broj));
+    if(i>=0) orders[i] = nalog; else orders.push(nalog);
+    setOrders(orders);
+
+    try{
+      const body = new URLSearchParams();
+      body.append('action','update');
+      body.append('broj',   String(nalog.broj||''));
+      body.append('firma',  String(nalog.firma||''));
+      body.append('adresa', String(nalog.adresa||''));
+      body.append('vreme',  String(nalog.vreme||new Date().toISOString()));
+      body.append('stavke', JSON.stringify(nalog.stavke||[]));
+      fetch('save_nalog.php', {method:'POST', body}).then(r=>r.text()).then(t=>{
+        if(!/^OK/.test(t)){ console.warn('update save_nalog.php:', t); }
+      }).catch(e=>console.warn('update error', e));
+    }catch(_){}
+
+    document.getElementById('modalBack').style.display='none';
+    notify('Izmene sačuvane');
+    renderPregled();
+    updateStats();
+  }catch(e){
+    console.warn(e); notify('Greška pri čuvanju', true);
+  }
+}
+
+// Init
+    (async function init(){
+      setLastNo(getLastNo());
+      await loadExcel();
+      updateStats();
+      renderPregled();
+      rebuildCompaniesFromOrders();
+    })();
+  </script>
+<aside class="nav-drawer" id="navDrawer"><header><div>Navigacija</div><button class="hamburger" id="closeDrawer"><span class="icon"></span><span>Zatvori</span></button></header><nav class="list" id="navList"></nav></aside><div class="nav-backdrop" id="navBackdrop"></div><script>
+// Manifest ugradjen u HTML (nema eksternog fajla)
+window.APP_PAGES = [
+  { href: "index.html", label: "Unos zahteva" },
+  { href: "dnevna-proizvodnja.html", label: "Dnevna proizvodnja" }
+];
+</script><script>
+(function(){
+  const open = ()=>{ document.getElementById('navDrawer').classList.add('open'); document.getElementById('navBackdrop').classList.add('show'); };
+  const close = ()=>{ document.getElementById('navDrawer').classList.remove('open'); document.getElementById('navBackdrop').classList.remove('show'); };
+  document.getElementById('hamburgerBtn').addEventListener('click', open);
+  document.getElementById('closeDrawer').addEventListener('click', close);
+  document.getElementById('navBackdrop').addEventListener('click', close);
+
+  function niceLabel(href){
+    try {
+      if (href.endsWith('index.html')) return 'Unos zahteva';
+      if (href.includes('dnevna-proizvodnja')) return 'Dnevna proizvodnja';
+      return href.replace(/\/.html?$/,'').replace(/[-_]/g,' ').replace(/^\/+/, '')
+                 .replace(/\.html$/,'')
+                 .replace(/\b\w/g, s=>s.toUpperCase());
+    } catch(e){ return href; }
+  }
+
+  function render(list){
+    const nav = document.getElementById('navList');
+    nav.innerHTML='';
+    const seen = new Set();
+    list.forEach(it=>{
+      const href = (typeof it === 'string') ? it : (it.href || '');
+      if(!href || seen.has(href)) return;
+      seen.add(href);
+      const label = (typeof it === 'string') ? niceLabel(href) : (it.label || niceLabel(href));
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = label;
+      nav.appendChild(a);
+    });
+  }
+
+  // Fallback pages if manifest not loaded:
+  const fallback = [
+    { href: 'index.html', label: 'Unos zahteva' },
+    { href: 'dnevna-proizvodnja.html', label: 'Dnevna proizvodnja' },
+  ];
+
+  // Try to render from window.APP_PAGES (provided by pages.js). If not present, use fallback.
+  function init(){
+    if (window.APP_PAGES && Array.isArray(window.APP_PAGES) && window.APP_PAGES.length){
+      render(window.APP_PAGES);
+    } else {
+      render(fallback);
+    }
+  }
+  init();
+})();</script>
+<!-- === Server save hook (AwardSpace) === -->
+<script>
+(function(){
+  const API_SAVE = 'save_nalog.php';
+  function postLastOrder(){
+    try{
+      const arr = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]');
+      if(!arr.length){ return; }
+      const last = arr[arr.length-1] || {};
+      const body = new URLSearchParams();
+      body.append('broj',   String(last.broj||''));
+      body.append('firma',  String(last.firma||''));
+      body.append('adresa', String(last.adresa||''));
+      body.append('vreme',  String(last.vreme||new Date().toISOString()));
+      body.append('stavke', JSON.stringify(last.stavke||[]));
+      return fetch(API_SAVE, {method:'POST', body}).then(r=>r.text()).then(t=>{
+        if(!/^OK/.test(t)){ console.warn('save_nalog.php:', t); }
+      }).catch(e=>console.warn('save_nalog.php error', e));
+    }catch(e){ console.warn(e); }
+  }
+
+  // 1) Ako postoji saveOrder, obmotaćemo ga
+  const tryWrap = () => {
+    if (typeof window.saveOrder === 'function'){
+      const orig = window.saveOrder;
+      window.saveOrder = function(){
+        const res = orig.apply(this, arguments);
+        try{ postLastOrder(); }catch(e){}
+        return res;
+      };
+      return true;
+    }
+    return false;
+  };
+  if(!tryWrap()){
+    // 2) Ako saveOrder ne postoji još (npr. definisaće se kasnije), probaj opet posle load-a
+    window.addEventListener('load', tryWrap);
+  }
+
+  // 3) Dodatna sigurnost: presretnemo klik na dugme sa "Sačuvaj" u nazivu (fallback)
+  document.addEventListener('click', function(e){
+    const t = e.target;
+    if(!t) return;
+    const label = (t.innerText||t.value||'').toLowerCase();
+    if(label.includes('sačuvaj') || label.includes('sacuvaj')){
+      setTimeout(postLastOrder, 500); // da stigne localStorage da se upiše
+    }
+  }, true);
+})();
+</script>
+
+
+<script>
+// === CSV Firme Autocomplete (Pregled + Unos) — non-intrusive addon ===========
+(function(){
+  // Fetch CSV text from server (no localStorage)
+  async function csvText(){
+    const urls = ['data/zahtevi.csv','/data/zahtevi.csv'];
+    let lastErr = null;
+    for(const u of urls){
+      try{
+        const r = await fetch(u + (u.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'});
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return await r.text();
+      }catch(e){ lastErr = e; }
+    }
+    throw lastErr || new Error('CSV fetch failed');
+  }
+  // Parse CSV with ';' or ',' and quotes
+  function parseRows(t){
+    t = (t||'').replace(/^\uFEFF/, '');
+    if(!t) return [];
+    const first = (t.split(/\r?\n/,1)[0]||'');
+    const d = first.includes(';') ? ';' : ',';
+    const rows = []; let i=0, f='', row=[], q=false;
+    while(i<t.length){
+      const c=t[i];
+      if(c=='"'){ if(q && t[i+1]=='"'){ f+='"'; i+=2; continue; } q=!q; i++; continue; }
+      if(!q && (c=='\n' || c=='\r')){ if(c=='\r'&&t[i+1]=='\n') i++; row.push(f); f=''; if(row.length>1 || (row.length==1 && row[0]!=='')) rows.push(row); row=[]; i++; continue; }
+      if(!q && c==d){ row.push(f); f=''; i++; continue; }
+      f+=c; i++;
+    }
+    if(f.length || row.length){ row.push(f); rows.push(row); }
+    return rows;
+  }
+  function firmsFromRows(rows){
+    if(!rows.length) return [];
+    const norm = s => (s||'').toString().trim().toLowerCase();
+    const H = rows[0].map(norm);
+    let col = H.indexOf('firma');
+    if(col < 0){ // fallback common variants
+      const tryNames = ['naziv', 'naziv_firme', 'company', 'client'];
+      for(const n of tryNames){ col = H.indexOf(n); if(col>=0) break; }
+    }
+    if(col < 0) return [];
+    const set = new Set();
+    for(let r=1; r<rows.length; r++){
+      const v = (rows[r][col]||'').trim();
+      if(v) set.add(v);
+    }
+    return Array.from(set).sort((a,b)=>a.localeCompare(b));
+  }
+  function populateLists(names){
+    // UNOS: firmList
+    const dl1 = document.getElementById('firmList');
+    if(dl1){ dl1.innerHTML=''; names.slice(0,1000).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.label=n; dl1.appendChild(o); }); }
+    // PREGLED: firmSearchList
+    const dl2 = document.getElementById('firmSearchList');
+    if(dl2){ dl2.innerHTML=''; names.slice(0,1000).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.label=n; dl2.appendChild(o); }); }
+  }
+  async function loadFirms(){
+    try{
+      const txt = await csvText();
+      const rows = parseRows(txt);
+      const names = firmsFromRows(rows);
+      populateLists(names);
+    }catch(e){
+      console.warn('CSV firms load error:', e);
+    }
+  }
+
+  // Hooks: on DOM ready, on Pregled refresh if postoji, i kad se otvori Pregled/Unos
+  document.addEventListener('DOMContentLoaded', loadFirms);
+  try{
+    const btn = document.getElementById('osveziPregled');
+    if(btn && !btn._firmsHook){ btn._firmsHook = true; btn.addEventListener('click', loadFirms); }
+  }catch(_){}
+  try{
+    const oldSetTab = window.setTab;
+    window.setTab = function(which){ if(oldSetTab) oldSetTab(which); if(which==='pregled'||which==='unos'){ loadFirms(); } };
+  }catch(_){}
+})();
+</script>
+
+<script>
+(function(){
+  function normTxt(s){
+    return (s||'').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s');
+  }
+  async function fetchCSVText(){
+    const urls = ['data/zahtevi.csv','/data/zahtevi.csv'];
+    for (const u of urls){
+      try{
+        const r = await fetch(u + (u.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'});
+        if(!r.ok) continue;
+        return await r.text();
+      }catch(_){}
+    }
+    return '';
+  }
+  function parseRows(t){
+    t = (t||'').replace(/^\uFEFF/, '');
+    if(!t) return [];
+    const first = (t.split(/\r?\n/,1)[0]||'');
+    const d = first.includes(';')?';':',';
+    const rows=[]; let i=0,f='',row=[],q=false;
+    while(i<t.length){
+      const c=t[i];
+      if(c=='"'){ if(q && t[i+1]=='"'){ f+='"'; i+=2; continue; } q=!q; i++; continue; }
+      if(!q && (c=='\n'||c=='\r')){ if(c=='\r'&&t[i+1]=='\n') i++; row.push(f); f=''; if(row.length>1 || (row.length==1 && row[0]!=='')) rows.push(row); row=[]; i++; continue; }
+      if(!q && c==d){ row.push(f); f=''; i++; continue; }
+      f+=c; i++;
+    }
+    if(f.length||row.length){ row.push(f); rows.push(row); }
+    return rows;
+  }
+  function extractFirms(text){
+    const rows = parseRows(text);
+    if(!rows.length) return [];
+    const H = rows[0].map(s=>(s||'').toLowerCase().trim());
+    let idx = H.indexOf('firma');
+    if(idx<0){ const alt=['naziv','naziv_firme','company','client']; for(const a of alt){ idx=H.indexOf(a); if(idx>=0) break; } }
+    if(idx<0) return [];
+    const set = new Set();
+    for(let r=1;r<rows.length;r++){
+      const v=(rows[r][idx]||'').trim(); if(v) set.add(v);
+    }
+    return Array.from(set).sort((a,b)=>a.localeCompare(b));
+  }
+  async function ensureCSVFirmsIntoApp(){
+    try{
+      if(Array.isArray(window.CSV_FIRME) && window.CSV_FIRME.length) return window.CSV_FIRME;
+      const txt = await fetchCSVText();
+      const names = extractFirms(txt);
+      window.CSV_FIRME = names;
+      try{ localStorage.setItem('proizvodnja_firme_v1', JSON.stringify(names)); }catch(_){}
+      try{ if(typeof window.setCompaniesStatus==='function') window.setCompaniesStatus('firme: '+names.length, names.length>0); }catch(_){}
+      return names;
+    }catch(_){ return []; }
+  }
+
+  function attachFilterAutocomplete(){
+    const input = document.getElementById('filterInput');
+    const menu  = document.getElementById('acFilter');
+    if(!input || !menu) return;
+
+    let items = [];
+    let idx = -1;
+
+    function hide(){ menu.style.display='none'; menu.innerHTML=''; idx=-1; items=[]; }
+    function show(list){
+      menu.innerHTML='';
+      items = list.slice(0, 30);
+      items.forEach((name,i)=>{
+        const div = document.createElement('div');
+        div.className = 'ac-item' + (i===0?' active':'');
+        if(i===0) idx=0;
+        const t = document.createElement('div'); t.className='ac-title'; t.textContent = name;
+        const s = document.createElement('div'); s.className='ac-sub'; s.textContent = 'firma iz CSV-a';
+        div.append(t); div.append(s);
+        div.addEventListener('mousedown', (e)=>{ e.preventDefault(); choose(i); });
+        menu.append(div);
+      });
+      menu.style.display = items.length ? 'block' : 'none';
+    }
+    function choose(i){
+      if(i<0 || i>=items.length) return;
+      input.value = items[i];
+      hide();
+      try{ if(typeof window.renderPregled==='function') window.renderPregled(); }catch(_){}
+    }
+    function filterNow(){
+      const q = normTxt(input.value||'');
+      const arr = Array.isArray(window.CSV_FIRME) ? window.CSV_FIRME : [];
+      const list = q ? arr.filter(n => normTxt(n).includes(q)) : arr.slice(0, 20);
+      if(list.length){ show(list); } else { hide(); }
+    }
+
+    input.setAttribute('autocomplete','off');
+    input.addEventListener('input', filterNow);
+    input.addEventListener('focus', filterNow);
+    input.addEventListener('keydown', (e)=>{
+      if(menu.style.display!=='block') return;
+      const nodes = Array.from(menu.querySelectorAll('.ac-item'));
+      if(!nodes.length) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); idx=(idx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      else if(e.key==='Enter'){ if(idx>=0){ e.preventDefault(); choose(idx); } }
+      else if(e.key==='Escape'){ hide(); }
+    });
+    document.addEventListener('click', (e)=>{ if(e.target!==input && !menu.contains(e.target)) hide(); });
+  }
+
+  document.addEventListener('DOMContentLoaded', async ()=>{
+    await ensureCSVFirmsIntoApp();
+    attachFilterAutocomplete();
+    try{
+      const fi = document.getElementById('firma');
+      if(fi){ fi.dispatchEvent(new Event('focus', {bubbles:true})); fi.dispatchEvent(new Event('input', {bubbles:true})); }
+    }catch(_){}
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  function normTxt(s){
+    return (s||'').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s');
+  }
+  function attachAutocompleteToFilter(){
+    const input = document.getElementById('filterInput');
+    const menu  = document.getElementById('acFilter');
+    if(!input || !menu) return;
+
+    let items = [];
+    let idx = -1;
+
+    function close(){ menu.hidden = true; menu.innerHTML=''; idx=-1; items=[]; }
+    function open(){ menu.hidden = false; }
+
+    function render(list){
+      menu.innerHTML = '';
+      if(!list.length){
+        const d=document.createElement('div'); d.className='ac-empty'; d.textContent='Nema predloga';
+        menu.appendChild(d); open(); return;
+      }
+      list.forEach((name,i)=>{
+        const el = document.createElement('div');
+        el.className = 'ac-item' + (i===0?' active':'');
+        el.textContent = name;
+        el.addEventListener('mousedown', (e)=>{ e.preventDefault(); choose(i); });
+        menu.appendChild(el);
+      });
+      open();
+    }
+    function choose(i){
+      if(i<0 || i>=items.length) return;
+      input.value = items[i];
+      close();
+      try{ if(typeof window.renderPregled==='function') window.renderPregled(); }catch(_){}
+    }
+    function filterNow(){
+      const arr = Array.isArray(window.CSV_FIRME) ? window.CSV_FIRME : [];
+      const q = normTxt(input.value||'');
+      items = q ? arr.filter(n=>normTxt(n).includes(q)) : arr.slice(0,20);
+      items = items.slice(0,30);
+      render(items);
+    }
+    input.setAttribute('autocomplete','off');
+    input.addEventListener('input', filterNow);
+    input.addEventListener('focus', filterNow);
+    input.addEventListener('keydown', (e)=>{
+      if(menu.hidden) return;
+      const nodes = Array.from(menu.querySelectorAll('.ac-item'));
+      if(!nodes.length) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); idx=(idx+1)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); idx=(idx-1+nodes.length)%nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active', i===idx)); }
+      else if(e.key==='Enter'){ if(idx>=0){ e.preventDefault(); choose(idx); } }
+      else if(e.key==='Escape'){ close(); }
+    });
+    document.addEventListener('click', (e)=>{ if(!menu.contains(e.target) && e.target!==input) close(); });
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    try{ attachAutocompleteToFilter(); }catch(_){}
+    setTimeout(()=>{ try{ attachAutocompleteToFilter(); }catch(_){} }, 500);
+  });
+})();
+</script>
+
+</body>
+</html>
