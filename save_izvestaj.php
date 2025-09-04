@@ -37,6 +37,8 @@ $broj       = isset($_POST['brojZahteva']) ? trim((string)$_POST['brojZahteva'])
 $artikal    = isset($_POST['artikal']) ? trim((string)$_POST['artikal']) : '';
 $m1         = isset($_POST['m1']) ? trim((string)$_POST['m1']) : '';
 $m2         = isset($_POST['m2']) ? trim((string)$_POST['m2']) : '';
+$m3         = isset($_POST['m3']) ? trim((string)$_POST['m3']) : '';
+$kom        = isset($_POST['kom']) ? trim((string)$_POST['kom']) : '';
 $napomena   = isset($_POST['napomena']) ? trim((string)$_POST['napomena']) : '';
 $vremeUnosa = date('c');
 
@@ -49,6 +51,8 @@ if ($datum==='' || $broj==='' || $artikal==='') {
 
 $m1 = str_replace(',', '.', $m1);
 $m2 = str_replace(',', '.', $m2);
+$m3 = str_replace(',', '.', $m3);
+$kom = str_replace(',', '.', $kom);
 
 $needHeader = !file_exists($csv) || filesize($csv)===0;
 
@@ -68,12 +72,12 @@ if (!@flock($h, LOCK_EX)) {
 }
 
 if ($needHeader){
-  if (@fputcsv($h, ['datum','brojZahteva','artikal','m1','m2','napomena','vremeUnosa'], ';')===false){
+  if (@fputcsv($h, ['datum','brojZahteva','artikal','m1','m2','m3','kom','napomena','vremeUnosa'], ';')===false){
     elog("HEADER_WRITE_FAIL");
   }
 }
 
-$row = [$datum, $broj, $artikal, $m1, $m2, $napomena, $vremeUnosa];
+$row = [$datum, $broj, $artikal, $m1, $m2, $m3, $kom, $napomena, $vremeUnosa];
 if (@fputcsv($h, $row, ';')===false){
   elog("ROW_WRITE_FAIL datum=$datum broj=$broj");
   http_response_code(500);
