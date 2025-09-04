@@ -578,7 +578,7 @@ function renderPregled(){
     const iFirma  = idx('firma');
     const iAdresa = idx('adresa');
     const iVreme  = idx('vreme');
-    const iStavke = idx('stavke');
+    const iStavke = (idx('stavke_json') >= 0) ? idx('stavke_json') : idx('stavke');
 
     const orders = rows.slice(1).map(cols=>{
       let stavke=[];
