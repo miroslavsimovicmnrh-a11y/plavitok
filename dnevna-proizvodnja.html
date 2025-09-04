@@ -358,6 +358,26 @@
 </div>
 </div>
 </div><!-- end sekcija-pregled -->
+<!-- DETALJNI PRIKAZ IZVEŠTAJA -->
+<div class="modal-back" id="modalBackPregled" style="display:none">
+  <div class="modal">
+    <div class="row" style="justify-content:space-between">
+      <div class="row" style="gap:8px">
+        <span class="pill">Detalji izveštaja</span>
+        <span class="chip"><b id="detDatum"></b> • <b id="detBroj"></b></span>
+      </div>
+      <button class="secondary" id="closePregled" style="width:auto">Zatvori</button>
+    </div>
+    <div class="table-scroll" style="margin-top:8px">
+      <table id="detPregled">
+        <thead>
+          <tr><th>Artikal</th><th class="right">M¹</th><th class="right">M²</th><th class="right">M³</th><th class="right">Kom</th><th>Napomena</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 </main>
 <script>
 const ARTIKLI = ["BL-3CM-40x40", "GR-2CM-100x50", "MR-5CM-20x20", "PL-2CM-60x30", "ST-STD-120x30"];
@@ -943,6 +963,7 @@ async function fetchCSVAll(){
   return rows;
 }
 function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function fmt(v){ return (v && !isNaN(v)) ? Number(v).toFixed(2) : v; }
 async function renderPregledCSV(){
   const tbody = document.querySelector('#tabela tbody');
   if(!tbody) return;
@@ -952,7 +973,6 @@ async function renderPregledCSV(){
   const qA = document.getElementById('filterArtikal')?.value || '';
   const qD = document.getElementById('filterDatum')?.value || '';
   const z = norm(qZ), a = norm(qA), d = (qD||'').trim();
-  const fmt = v => (v && !isNaN(v)) ? Number(v).toFixed(2) : v;
   data
     .filter(r => (!z || norm(r.brojZahteva).includes(z))
               && (!a || norm(r.artikal).includes(a))
@@ -976,6 +996,42 @@ async function renderPregledCSV(){
   document.getElementById('filterZahtev')?.addEventListener(evt, renderPregledCSV);
   document.getElementById('filterArtikal')?.addEventListener(evt, renderPregledCSV);
   document.getElementById('filterDatum')?.addEventListener(evt, renderPregledCSV);
+});
+
+// Open modal with full report
+document.addEventListener('click', async e => {
+  const btn = e.target.closest && e.target.closest('button.otvori');
+  if(!btn) return;
+  const tr = btn.closest('tr'); if(!tr) return;
+  const tds = tr.children;
+  const datum = tds[0] ? tds[0].textContent.trim() : '';
+  const broj = tds[1] ? tds[1].textContent.trim() : '';
+  const data = await fetchCSVAll();
+  const list = data.filter(r => r.datum===datum && r.brojZahteva===broj);
+  const tb = document.querySelector('#detPregled tbody');
+  if(tb){
+    tb.innerHTML = '';
+    list.forEach(r=>{
+      const row = document.createElement('tr');
+      row.innerHTML = ''
+        + '<td>'+(r.artikal||'')+'</td>'
+        + '<td class="right">'+(fmt(r.m1)||'')+'</td>'
+        + '<td class="right">'+(fmt(r.m2)||'')+'</td>'
+        + '<td class="right">'+(fmt(r.m3)||'')+'</td>'
+        + '<td class="right">'+(fmt(r.kom)||'')+'</td>'
+        + '<td>'+(r.napomena||'')+'</td>';
+      tb.appendChild(row);
+    });
+  }
+  const dEl = document.getElementById('detDatum'); if(dEl) dEl.textContent = datum;
+  const bEl = document.getElementById('detBroj'); if(bEl) bEl.textContent = broj;
+  const back = document.getElementById('modalBackPregled'); if(back) back.style.display='flex';
+});
+document.getElementById('closePregled')?.addEventListener('click', ()=>{
+  const back = document.getElementById('modalBackPregled'); if(back) back.style.display='none';
+});
+document.getElementById('modalBackPregled')?.addEventListener('click', e=>{
+  if(e.target && e.target.id==='modalBackPregled') e.currentTarget.style.display='none';
 });
 </script>
 <script>
