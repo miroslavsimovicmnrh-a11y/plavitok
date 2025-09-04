@@ -196,8 +196,9 @@
 
 
 /* Artikal + M2 + M1 horizontal row */
-.artikal-m-row { display:flex; gap:20px; align-items:flex-end; margin-top:10px; }
-.artikal-m-row .field { flex:1; }
+.artikal-m-row { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end; margin-top:10px; }
+.artikal-m-row .field { flex:1 1 120px; }
+.artikal-m-row .artikal-field { flex-basis:100%; }
 .artikal-m-row label { display:block; margin-bottom:4px; }
 .artikal-m-row input { width:100%; }
 
@@ -271,7 +272,7 @@
 <div class="row">
 <div>
 <div class="artikal-m-row">
-  <div class="field">
+  <div class="field artikal-field">
     <label for="artikal">Artikal (iz Excela)</label>
     <div class="ac2-wrap">
       <input type="text" id="artikal" name="artikal" placeholder="Počni da kucaš...">
