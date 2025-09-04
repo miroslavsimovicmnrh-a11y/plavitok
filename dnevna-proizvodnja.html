@@ -196,8 +196,9 @@
 
 
 /* Artikal + M2 + M1 horizontal row */
-.artikal-m-row { display:flex; gap:20px; align-items:flex-end; margin-top:10px; }
-.artikal-m-row .field { flex:1; }
+.artikal-m-row { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end; margin-top:10px; }
+.artikal-m-row .field { flex:1 1 120px; }
+.artikal-m-row .artikal-field { flex-basis:100%; }
 .artikal-m-row label { display:block; margin-bottom:4px; }
 .artikal-m-row input { width:100%; }
 
@@ -271,7 +272,7 @@
 <div class="row">
 <div>
 <div class="artikal-m-row">
-  <div class="field">
+  <div class="field artikal-field">
     <label for="artikal">Artikal (iz Excela)</label>
     <div class="ac2-wrap">
       <input type="text" id="artikal" name="artikal" placeholder="Počni da kucaš...">
@@ -289,6 +290,10 @@
   <div class="field">
     <label for="m3">Proizvedeno (M³)</label>
     <input type="number" step="any" id="m3" name="m3" placeholder="npr. 123.45">
+  </div>
+  <div class="field">
+    <label for="kom">Proizvedeno (kom)</label>
+    <input type="number" step="any" id="kom" name="kom" placeholder="npr. 123">
   </div>
 </div></div></div></div>
 </div>
@@ -317,6 +322,8 @@
           <th>M¹</th>
           <th>M²</th>
           <th>M³</th>
+          <th>Kom</th>
+          <th class="actions">Akcije</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -343,7 +350,7 @@
 <th>Datum</th>
 <th>Broj zahteva</th>
 <th>Artikal</th>
-<th>m¹</th><th>M²</th><th>M³</th>
+<th>m¹</th><th>M²</th><th>M³</th><th>Kom</th>
 <th>Napomena</th><th class="right nowrap">Akcije</th></tr>
 </thead>
 <tbody></tbody>
@@ -423,6 +430,7 @@ function renderTable() {
       + '<td>' + (row.m1 != null ? Number(row.m1).toFixed(2) : '') + '</td>'
       + '<td>' + (row.m2 != null ? Number(row.m2).toFixed(2) : '') + '</td>'
       + '<td>' + (row.m3 != null ? Number(row.m3).toFixed(2) : '') + '</td>'
+      + '<td>' + (row.kom != null ? Number(row.kom).toFixed(2) : '') + '</td>'
       + '<td class="actions">'
       +   '<button data-action="edit" data-i="' + idx + '">Izmeni</button> '
       +   '<button data-action="del" data-i="' + idx + '" class="secondary">Obriši</button>'
@@ -439,7 +447,7 @@ function resetForm() {
 
 function exportCSV() {
   const rows = loadReports();
-  const headers = ['datum','brojZahteva','artikal','m1','m2','m3'];
+  const headers = ['datum','brojZahteva','artikal','m1','m2','m3','kom'];
   const csv = [headers.join(',')]
     .concat(rows.map(r => headers.map(h => {
       const v = (r[h] ?? '').toString().replaceAll('"','""');
@@ -473,12 +481,13 @@ document.getElementById('form-izvestaj').addEventListener('submit', (e) => {
   const m1 = parseFloat(document.getElementById('m1').value);
   const m2 = parseFloat(document.getElementById('m2').value);
   const m3 = parseFloat(document.getElementById('m3').value);
+  const kom = parseFloat(document.getElementById('kom').value);
   if (!datum || !brojZahteva || !artikal || isNaN(m1)) {
     alert('Popunite sva polja.');
     return;
   }
   const rows = loadReports();
-  rows.push({ datum, brojZahteva, artikal, m1: isNaN(m1) ? null : m1, m2: isNaN(m2) ? null : m2, m3: isNaN(m3) ? null : m3 });
+  rows.push({ datum, brojZahteva, artikal, m1: isNaN(m1) ? null : m1, m2: isNaN(m2) ? null : m2, m3: isNaN(m3) ? null : m3, kom: isNaN(kom) ? null : kom });
   saveReports(rows);
   renderTable();
   resetForm();
@@ -507,6 +516,7 @@ document.querySelector('#tabela').addEventListener('click', (e) => {
     document.getElementById('m1').value = r.m1 != null ? r.m1 : '';
     document.getElementById('m2').value = r.m2 != null ? r.m2 : '';
     document.getElementById('m3').value = r.m3 != null ? r.m3 : '';
+    document.getElementById('kom').value = r.kom != null ? r.kom : '';
     rows.splice(idx, 1);
     saveReports(rows);
     renderTable();
@@ -752,6 +762,7 @@ document.addEventListener("DOMContentLoaded", function(){
   <input type="hidden" name="m1" />
   <input type="hidden" name="m2" />
   <input type="hidden" name="m3" />
+  <input type="hidden" name="kom" />
   <input type="hidden" name="napomena" />
 </form>
 <script>
@@ -774,6 +785,7 @@ document.addEventListener("DOMContentLoaded", function(){
         F.elements['m1'].value = document.getElementById('m1')?.value || '';
         F.elements['m2'].value = document.getElementById('m2')?.value || '';
         F.elements['m3'].value = document.getElementById('m3')?.value || '';
+        F.elements['kom'].value = document.getElementById('kom')?.value || '';
         const nEl = document.getElementById('napomena');
         F.elements['napomena'].value = nEl ? (nEl.value||'').trim() : '';
         F.submit();
@@ -804,6 +816,7 @@ document.addEventListener("DOMContentLoaded", function(){
         (obj.m1 && !isNaN(obj.m1)) ? ('M¹: '+obj.m1) : null,
         (obj.m2 && !isNaN(obj.m2)) ? ('M²: '+obj.m2) : null,
         (obj.m3 && !isNaN(obj.m3)) ? ('M³: '+obj.m3) : null,
+        (obj.kom && !isNaN(obj.kom)) ? ('Kom: '+obj.kom) : null,
         obj.napomena ? ('Napomena: '+obj.napomena) : null
       ].filter(Boolean).join(' • ');
       const el = document.getElementById('lastSaved');
@@ -844,6 +857,8 @@ document.addEventListener("DOMContentLoaded", function(){
         <td>${fmt(obj.m1)||''}</td>
         <td>${fmt(obj.m2)||''}</td>
         <td>${fmt(obj.m3)||''}</td>
+        <td>${fmt(obj.kom)||''}</td>
+        <td></td>
       </tr>`;
       const tbody = document.querySelector('#lastTable tbody');
       if(tbody){ tbody.innerHTML = rowHtml; }
@@ -896,6 +911,8 @@ async function loadLastFromCSV(){
       + '<td>'+(fmt(last[idx('m1')])||'')+'</td>'
       + '<td>'+(fmt(last[idx('m2')])||'')+'</td>'
       + '<td>'+(fmt(last[idx('m3')])||'')+'</td>'
+      + '<td>'+(fmt(last[idx('kom')])||'')+'</td>'
+      + '<td></td>'
       + '</tr>';
     tbody.innerHTML = rowHtml;
   }catch(e){}
@@ -919,6 +936,7 @@ async function fetchCSVAll(){
       m1: cols[header.indexOf('m1')]||'',
       m2: cols[header.indexOf('m2')]||'',
       m3: cols[header.indexOf('m3')]||'',
+      kom: cols[header.indexOf('kom')]||'',
       napomena: cols[header.indexOf('napomena')]||''
     });
   }
@@ -948,6 +966,7 @@ async function renderPregledCSV(){
         + '<td>'+(fmt(r.m1)||'')+'</td>'
         + '<td>'+(fmt(r.m2)||'')+'</td>'
         + '<td>'+(fmt(r.m3)||'')+'</td>'
+        + '<td>'+(fmt(r.kom)||'')+'</td>'
         + '<td>'+(r.napomena||'')+'</td>'
         + '<td class="right"><button class="secondary otvori" type="button" style="width:auto">Otvori</button> <button class="ok edit-btn" type="button" style="width:auto;margin-left:6px">Izmeni</button></td>';
       tbody.appendChild(tr);
@@ -1000,9 +1019,10 @@ async function renderPregledCSV(){
       <div class="col-4"><label>Datum</label><input id="editDatum"/></div>
       <div class="col-4"><label>Broj zahteva</label><input id="editBroj"/></div>
       <div class="col-4"><label>Artikal</label><input id="editArtikal"/></div>
-      <div class="col-4"><label>M¹</label><input id="editM1" type="number" step="any"/></div>
-      <div class="col-4"><label>M²</label><input id="editM2" type="number" step="any"/></div>
-      <div class="col-4"><label>M³</label><input id="editM3" type="number" step="any"/></div>
+      <div class="col-3"><label>M¹</label><input id="editM1" type="number" step="any"/></div>
+      <div class="col-3"><label>M²</label><input id="editM2" type="number" step="any"/></div>
+      <div class="col-3"><label>M³</label><input id="editM3" type="number" step="any"/></div>
+      <div class="col-3"><label>Kom</label><input id="editKom" type="number" step="any"/></div>
       <div class="col-12"><label>Napomena</label><input id="editNapomena"/></div>
     </div>
   </div>
@@ -1021,11 +1041,11 @@ async function renderPregledCSV(){
     }
     if(!btn) return;
     const tr = btn.closest('tr'); if(!tr) return;
-    const d = txt(tr,0), b = txt(tr,1), a = txt(tr,2), m1 = txt(tr,3), m2 = txt(tr,4), m3 = txt(tr,5), nap = txt(tr,6) || '';
+    const d = txt(tr,0), b = txt(tr,1), a = txt(tr,2), m1 = txt(tr,3), m2 = txt(tr,4), m3 = txt(tr,5), kom = txt(tr,6), nap = txt(tr,7) || '';
     const back = document.getElementById('modalBackProd'); if(!back) return;
     const chip = document.getElementById('chipKeyProd'); if(chip) chip.textContent = d+' • '+b+' • '+a;
     const set = (id,val)=>{ const el=document.getElementById(id); if(el) el.value=val; };
-    set('editDatum', d); set('editBroj', b); set('editArtikal', a); set('editM1', m1); set('editM2', m2); set('editM3', m3); set('editNapomena', nap);
+    set('editDatum', d); set('editBroj', b); set('editArtikal', a); set('editM1', m1); set('editM2', m2); set('editM3', m3); set('editKom', kom); set('editNapomena', nap);
     back.style.display = 'flex';
   }, true);
 
@@ -1076,6 +1096,7 @@ async function renderPregledCSV(){
         m1:          (document.getElementById('editM1')||{}).value?.trim() || '',
         m2:          (document.getElementById('editM2')||{}).value?.trim() || '',
         m3:          (document.getElementById('editM3')||{}).value?.trim() || '',
+        kom:         (document.getElementById('editKom')||{}).value?.trim() || '',
         napomena:    (document.getElementById('editNapomena')||{}).value?.trim() || '',
         o_datum:       sb.dataset.odatum || '',
         o_brojZahteva: sb.dataset.obroj  || '',
@@ -1103,7 +1124,8 @@ async function renderPregledCSV(){
           if(tr.children[3]) tr.children[3].textContent = payload.m1;
           if(tr.children[4]) tr.children[4].textContent = payload.m2;
           if(tr.children[5]) tr.children[5].textContent = payload.m3;
-          if(tr.children[6]) tr.children[6].textContent = payload.napomena;
+          if(tr.children[6]) tr.children[6].textContent = payload.kom;
+          if(tr.children[7]) tr.children[7].textContent = payload.napomena;
           break;
         }
       }
