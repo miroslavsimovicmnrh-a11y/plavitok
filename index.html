@@ -640,7 +640,7 @@ function renderPregled(){
           artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
           m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
           m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
-          m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3)}</div>`);
+          m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
           komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
         });
         tr.innerHTML = `
@@ -679,7 +679,7 @@ function renderPregled(){
               artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
               m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
               m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
-              m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3)}</div>`);
+              m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
               komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
             });
             tr.innerHTML = `
