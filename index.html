@@ -622,6 +622,8 @@ function renderPregled(){
       };
     }).filter(n=>n.broj);
 
+    window._ORDERS_CACHE = orders.slice();
+
     const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
     filtered.sort(_sorter.current);
 
@@ -669,6 +671,7 @@ function renderPregled(){
       // Final fallback: localStorage
       try{
         const orders = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]')||[];
+        window._ORDERS_CACHE = orders.slice();
         const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
         filtered.sort(_sorter.current);
         filtered.forEach(n=>{
@@ -1212,6 +1215,17 @@ function saveEditedNalog(nalog){
     const i = orders.findIndex(n=>String(n.broj)===String(nalog.broj));
     if(i>=0) orders[i] = nalog; else orders.push(nalog);
     setOrders(orders);
+    if(Array.isArray(window._ORDERS_CACHE)){
+      const j = window._ORDERS_CACHE.findIndex(n=>String(n.broj)===String(nalog.broj));
+      if(j>=0) window._ORDERS_CACHE[j] = nalog; else window._ORDERS_CACHE.push(nalog);
+    }
+
+    const finalize = ()=>{
+      document.getElementById('modalBack').style.display='none';
+      notify('Izmene sačuvane');
+      renderPregled();
+      updateStats();
+    };
 
     try{
       const body = new URLSearchParams();
@@ -1221,15 +1235,12 @@ function saveEditedNalog(nalog){
       body.append('adresa', String(nalog.adresa||''));
       body.append('vreme',  String(nalog.vreme||new Date().toISOString()));
       body.append('stavke', JSON.stringify(nalog.stavke||[]));
-      fetch('save_nalog.php', {method:'POST', body}).then(r=>r.text()).then(t=>{
-        if(!/^OK/.test(t)){ console.warn('update save_nalog.php:', t); }
-      }).catch(e=>console.warn('update error', e));
-    }catch(_){}
-
-    document.getElementById('modalBack').style.display='none';
-    notify('Izmene sačuvane');
-    renderPregled();
-    updateStats();
+      fetch('save_nalog.php', {method:'POST', body})
+        .then(r=>r.text())
+        .then(t=>{ if(!/^OK/.test(t)){ console.warn('update save_nalog.php:', t); } })
+        .catch(e=>console.warn('update error', e))
+        .finally(finalize);
+    }catch(_){ finalize(); }
   }catch(e){
     console.warn(e); notify('Greška pri čuvanju', true);
   }
