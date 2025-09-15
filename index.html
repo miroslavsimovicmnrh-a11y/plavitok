@@ -306,6 +306,10 @@
 <th data-sort="adresa">Adresa ⬍</th>
 <th class="nowrap" data-sort="vreme">Kreirano ⬍</th>
 <th>Artikli</th>
+<th class="right nowrap">M¹</th>
+<th class="right nowrap">M²</th>
+<th class="right nowrap">M³</th>
+<th class="right nowrap">Kom</th>
 <th class="right nowrap"># stavki</th>
 <th class="right nowrap">Akcije</th>
 </tr>
@@ -625,14 +629,33 @@ function renderPregled(){
       const tr = document.createElement('tr');
       const dt = n.vreme ? new Date(n.vreme) : null;
       const artikliHtml = (n.stavke||[])
-        .map(s => `<div>${s.sifra||''} (${s.kolicina||''})</div>`) 
+        .map(s => `<div>${s.sifra||''}</div>`)
         .join('');
+      const totals = {m1:0,m2:0,m3:0,kom:0};
+      (n.stavke||[]).forEach(s=>{
+        const k = Number(s.kolicina)||0;
+        switch((s.jedinica||'').toLowerCase()){
+          case 'm1': case 'm¹': totals.m1 += k; break;
+          case 'm3': case 'm³': totals.m3 += k; break;
+          case 'kom': totals.kom += k; break;
+          default: totals.m2 += k; break;
+        }
+        totals.m1 += Number(s.m1)||0;
+        totals.m2 += Number(s.m2)||0;
+        totals.m3 += Number(s.m3)||0;
+        totals.kom += Number(s.kom)||0;
+      });
+      const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
       tr.innerHTML = '\
         <td class="nowrap"><b>'+ (n.broj||'') +'</b></td>\
         <td>'+ (n.firma||'') +'</td>\
         <td>'+ (n.adresa||'') +'</td>\
         <td class="nowrap">'+ (dt ? dt.toLocaleString() : '') +'</td>\
         <td>'+ artikliHtml +'</td>\
+        <td class="right">'+ fmt(totals.m1) +'</td>\
+        <td class="right">'+ fmt(totals.m2) +'</td>\
+        <td class="right">'+ fmt(totals.m3) +'</td>\
+        <td class="right">'+ fmt(totals.kom,0) +'</td>\
         <td class="right">'+ ((n.stavke||[]).length) +'</td>\
         <td class="right"><button class="secondary" data-open="'+ (n.broj||'') +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
       tb.appendChild(tr);
@@ -651,14 +674,33 @@ function renderPregled(){
         filtered.forEach(n=>{
           const tr = document.createElement('tr');
           const artikliHtml = (n.stavke||[])
-            .map(s => `<div>${s.sifra||''} (${s.kolicina||''})</div>`)
+            .map(s => `<div>${s.sifra||''}</div>`)
             .join('');
+          const totals = {m1:0,m2:0,m3:0,kom:0};
+          (n.stavke||[]).forEach(s=>{
+            const k = Number(s.kolicina)||0;
+            switch((s.jedinica||'').toLowerCase()){
+              case 'm1': case 'm¹': totals.m1 += k; break;
+              case 'm3': case 'm³': totals.m3 += k; break;
+              case 'kom': totals.kom += k; break;
+              default: totals.m2 += k; break;
+            }
+            totals.m1 += Number(s.m1)||0;
+            totals.m2 += Number(s.m2)||0;
+            totals.m3 += Number(s.m3)||0;
+            totals.kom += Number(s.kom)||0;
+          });
+          const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
           tr.innerHTML = '\
             <td class="nowrap"><b>'+ n.broj +'</b></td>\
             <td>'+ (n.firma||'') +'</td>\
             <td>'+ (n.adresa||'') +'</td>\
             <td class="nowrap">'+ new Date(n.vreme).toLocaleString() +'</td>\
             <td>'+ artikliHtml +'</td>\
+            <td class="right">'+ fmt(totals.m1) +'</td>\
+            <td class="right">'+ fmt(totals.m2) +'</td>\
+            <td class="right">'+ fmt(totals.m3) +'</td>\
+            <td class="right">'+ fmt(totals.kom,0) +'</td>\
             <td class="right">'+ ((n.stavke||[]).length) +'</td>\
             <td class="right"><button class="secondary" data-open="'+ n.broj +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
           tb.appendChild(tr);
