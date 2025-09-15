@@ -629,7 +629,7 @@ function renderPregled(){
       const tr = document.createElement('tr');
       const dt = n.vreme ? new Date(n.vreme) : null;
       const artikliHtml = (n.stavke||[])
-        .map(s => `<div>${s.sifra||''}${s.dimenzije? ' '+s.dimenzije : ''}</div>`)
+        .map(s => `<div>${s.sifra||''}</div>`)
         .join('');
       const totals = {m1:0,m2:0,m3:0,kom:0};
       (n.stavke||[]).forEach(s=>{
@@ -674,7 +674,7 @@ function renderPregled(){
         filtered.forEach(n=>{
           const tr = document.createElement('tr');
           const artikliHtml = (n.stavke||[])
-            .map(s => `<div>${s.sifra||''}${s.dimenzije? ' '+s.dimenzije : ''}</div>`)
+            .map(s => `<div>${s.sifra||''}</div>`)
             .join('');
           const totals = {m1:0,m2:0,m3:0,kom:0};
           (n.stavke||[]).forEach(s=>{
