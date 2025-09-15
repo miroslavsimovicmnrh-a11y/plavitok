@@ -953,15 +953,16 @@ async function fetchCSVAll(){
   const rows = [];
   for(let i=1;i<lines.length;i++){
     const cols = lines[i].split(';').map(s=>s.replace(/^"|"$/g,''));
+    const modern = cols.length >= 8 || header.length >= 8;
     rows.push({
-      datum: cols[header.indexOf('datum')]||'',
-      brojZahteva: cols[header.indexOf('brojZahteva')]||'',
-      artikal: cols[header.indexOf('artikal')]||'',
-      m1: cols[header.indexOf('m1')]||'',
-      m2: cols[header.indexOf('m2')]||'',
-      m3: cols[header.indexOf('m3')]||'',
-      kom: cols[header.indexOf('kom')]||'',
-      napomena: cols[header.indexOf('napomena')]||''
+      datum: cols[0]||'',
+      brojZahteva: cols[1]||'',
+      artikal: cols[2]||'',
+      m1: cols[3]||'',
+      m2: cols[4]||'',
+      m3: cols[5]||'',
+      kom: modern ? cols[6]||'' : '',
+      napomena: modern ? cols[7]||'' : cols[6]||''
     });
   }
   return rows;
