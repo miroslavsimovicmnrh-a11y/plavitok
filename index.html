@@ -125,6 +125,8 @@
     .right{text-align:right}
     .nowrap{white-space:nowrap}
     .table-scroll{overflow-x:auto}
+    .line-item{border-bottom:1px solid #141a33;padding:2px 0}
+    .line-item:last-child{border-bottom:none}
 
     /* STATS */
     .stat{ background: var(--glass-strong); border:1px solid var(--line); border-radius:16px; padding:14px; }
@@ -625,41 +627,34 @@ function renderPregled(){
     const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
     filtered.sort(_sorter.current);
 
-    filtered.forEach(n=>{
-      const tr = document.createElement('tr');
-      const dt = n.vreme ? new Date(n.vreme) : null;
-      const artikliHtml = (n.stavke||[])
-        .map(s => `<div>${s.sifra||''}</div>`)
-        .join('');
-      const totals = {m1:0,m2:0,m3:0,kom:0};
-      (n.stavke||[]).forEach(s=>{
-        const k = Number(s.kolicina)||0;
-        switch((s.jedinica||'').toLowerCase()){
-          case 'm1': case 'm¹': totals.m1 += k; break;
-          case 'm3': case 'm³': totals.m3 += k; break;
-          case 'kom': totals.kom += k; break;
-          default: totals.m2 += k; break;
-        }
-        totals.m1 += Number(s.m1)||0;
-        totals.m2 += Number(s.m2)||0;
-        totals.m3 += Number(s.m3)||0;
-        totals.kom += Number(s.kom)||0;
+      filtered.forEach(n=>{
+        const tr = document.createElement('tr');
+        const dt = n.vreme ? new Date(n.vreme) : null;
+        const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
+        const artikliHtml = [];
+        const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
+        (n.stavke||[]).forEach(s=>{
+          const unit = (s.jedinica||'').toLowerCase();
+          artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
+          m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
+          m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
+          m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3)}</div>`);
+          komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
+        });
+        tr.innerHTML = `
+          <td class="nowrap"><b>${n.broj||''}</b></td>
+          <td>${n.firma||''}</td>
+          <td>${n.adresa||''}</td>
+          <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
+          <td>${artikliHtml.join('')}</td>
+          <td class="right">${m1Html.join('')}</td>
+          <td class="right">${m2Html.join('')}</td>
+          <td class="right">${m3Html.join('')}</td>
+          <td class="right">${komHtml.join('')}</td>
+          <td class="right">${(n.stavke||[]).length}</td>
+          <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+        tb.appendChild(tr);
       });
-      const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
-      tr.innerHTML = '\
-        <td class="nowrap"><b>'+ (n.broj||'') +'</b></td>\
-        <td>'+ (n.firma||'') +'</td>\
-        <td>'+ (n.adresa||'') +'</td>\
-        <td class="nowrap">'+ (dt ? dt.toLocaleString() : '') +'</td>\
-        <td>'+ artikliHtml +'</td>\
-        <td class="right">'+ fmt(totals.m1) +'</td>\
-        <td class="right">'+ fmt(totals.m2) +'</td>\
-        <td class="right">'+ fmt(totals.m3) +'</td>\
-        <td class="right">'+ fmt(totals.kom,0) +'</td>\
-        <td class="right">'+ ((n.stavke||[]).length) +'</td>\
-        <td class="right"><button class="secondary" data-open="'+ (n.broj||'') +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
-      tb.appendChild(tr);
-    });
   }
 
   // Try relative and absolute CSV
@@ -671,40 +666,33 @@ function renderPregled(){
         const orders = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]')||[];
         const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
         filtered.sort(_sorter.current);
-        filtered.forEach(n=>{
-          const tr = document.createElement('tr');
-          const artikliHtml = (n.stavke||[])
-            .map(s => `<div>${s.sifra||''}</div>`)
-            .join('');
-          const totals = {m1:0,m2:0,m3:0,kom:0};
-          (n.stavke||[]).forEach(s=>{
-            const k = Number(s.kolicina)||0;
-            switch((s.jedinica||'').toLowerCase()){
-              case 'm1': case 'm¹': totals.m1 += k; break;
-              case 'm3': case 'm³': totals.m3 += k; break;
-              case 'kom': totals.kom += k; break;
-              default: totals.m2 += k; break;
-            }
-            totals.m1 += Number(s.m1)||0;
-            totals.m2 += Number(s.m2)||0;
-            totals.m3 += Number(s.m3)||0;
-            totals.kom += Number(s.kom)||0;
+          filtered.forEach(n=>{
+            const tr = document.createElement('tr');
+            const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
+            const artikliHtml = [];
+            const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
+            (n.stavke||[]).forEach(s=>{
+              const unit = (s.jedinica||'').toLowerCase();
+              artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
+              m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
+              m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
+              m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3)}</div>`);
+              komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
+            });
+            tr.innerHTML = `
+              <td class="nowrap"><b>${n.broj}</b></td>
+              <td>${n.firma||''}</td>
+              <td>${n.adresa||''}</td>
+              <td class="nowrap">${new Date(n.vreme).toLocaleString()}</td>
+              <td>${artikliHtml.join('')}</td>
+              <td class="right">${m1Html.join('')}</td>
+              <td class="right">${m2Html.join('')}</td>
+              <td class="right">${m3Html.join('')}</td>
+              <td class="right">${komHtml.join('')}</td>
+              <td class="right">${(n.stavke||[]).length}</td>
+              <td class="right"><button class="secondary" data-open="${n.broj}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+            tb.appendChild(tr);
           });
-          const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
-          tr.innerHTML = '\
-            <td class="nowrap"><b>'+ n.broj +'</b></td>\
-            <td>'+ (n.firma||'') +'</td>\
-            <td>'+ (n.adresa||'') +'</td>\
-            <td class="nowrap">'+ new Date(n.vreme).toLocaleString() +'</td>\
-            <td>'+ artikliHtml +'</td>\
-            <td class="right">'+ fmt(totals.m1) +'</td>\
-            <td class="right">'+ fmt(totals.m2) +'</td>\
-            <td class="right">'+ fmt(totals.m3) +'</td>\
-            <td class="right">'+ fmt(totals.kom,0) +'</td>\
-            <td class="right">'+ ((n.stavke||[]).length) +'</td>\
-            <td class="right"><button class="secondary" data-open="'+ n.broj +'" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>';
-          tb.appendChild(tr);
-        });
       }catch(_){}
     }));
 }
