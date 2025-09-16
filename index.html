@@ -376,9 +376,6 @@
 
     const LS_ORDERS = 'proizvodnja_nalozi_v1';
     const LS_LASTNO = 'proizvodnja_lastno_v1';
-    const PRODUCTION_CSV_URLS = ['data/proizvodnja.csv', '/data/proizvodnja.csv'];
-    let _productionCache = null;
-    let _productionPromise = null;
 
     const q = sel => document.querySelector(sel);
 
@@ -572,30 +569,12 @@
 
     // Pregled
     
-async function renderPregled(arg){
+function renderPregled(){
   const tb = document.querySelector('#pregledTable tbody');
   if(!tb) return;
   tb.innerHTML='';
   const filterEl = document.querySelector('#filterInput');
   const filter = (filterEl && filterEl.value ? filterEl.value : '').toLowerCase();
-
-  const isEvent = (typeof Event !== 'undefined') && arg instanceof Event;
-  let forceProd = false;
-  if(arg && typeof arg === 'object' && !isEvent && arg.forceProd){
-    forceProd = true;
-  }
-  if(isEvent){
-    const trg = arg.currentTarget || arg.target;
-    if(trg && trg.id === 'osveziPregled') forceProd = true;
-  }
-
-  const productionPromise = fetchProductionTotals(forceProd);
-
-  if(isEvent && arg.type === 'input' && Array.isArray(window._ORDERS_CACHE)){
-    const productionMapCached = await productionPromise;
-    fillTable(window._ORDERS_CACHE, productionMapCached || new Map());
-    return;
-  }
 
   const tryFetch = (url) => fetch(url + (url.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'})
     .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); });
@@ -631,216 +610,7 @@ async function renderPregled(arg){
     return (h||'').toString().trim().toLowerCase();
   }
 
-  function normalizeProdHeader(h){
-    return (h||'').toString()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g,'');
-  }
-
-  function normalizeOrderKey(v){
-    const str = (v||'').toString().trim();
-    if(!str) return '';
-    const compact = str.replace(/\s+/g,'');
-    if(/^[-+]?\d+$/.test(compact)){
-      return String(Number(compact));
-    }
-    return compact.toLowerCase();
-  }
-
-  function extractArtikalCode(value){
-    let str = (value||'').toString().trim();
-    if(!str) return '';
-    const separators = [' – ', ' - '];
-    for(const sep of separators){
-      const idx = str.indexOf(sep);
-      if(idx>0){ str = str.slice(0, idx).trim(); break; }
-    }
-    const parIdx = str.indexOf('(');
-    if(parIdx>0){ str = str.slice(0, parIdx).trim(); }
-    return str;
-  }
-
-  function normalizeArtKey(v){
-    const base = extractArtikalCode(v);
-    if(!base) return '';
-    return base
-      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-      .replace(/\s+/g,'')
-      .toLowerCase();
-  }
-
-  function prodKey(broj, art){
-    return `${broj}||${art}`;
-  }
-
-  function parseNum(v){
-    if(v==null) return 0;
-    if(typeof v === 'number') return Number.isFinite(v) ? v : 0;
-    let str = v.toString().trim();
-    if(!str) return 0;
-    str = str.replace(/\s+/g,'').replace(',', '.');
-    const num = Number(str);
-    return Number.isFinite(num) ? num : 0;
-  }
-
-  function hasDisplayValue(v){
-    if(v==null) return false;
-    if(typeof v === 'string' && v.trim()==='') return false;
-    return Math.abs(parseNum(v)) > 0;
-  }
-
-  function formatNumber(num, digits){
-    const fixed = num.toFixed(digits);
-    let out = fixed.replace(/^-0(\.0+)?$/, (_,dec)=> dec ? `0${dec}` : '0');
-    if(digits>0){
-      out = out.replace(/(\.\d*?[1-9])0+$/, '$1');
-      out = out.replace(/\.0+$/, '');
-    }
-    return out;
-  }
-
-  function formatQty(ordered, produced, digits){
-    const hasOrd = hasDisplayValue(ordered);
-    const hasProd = hasDisplayValue(produced);
-    if(!hasOrd && !hasProd) return '';
-    const ordNum = hasOrd ? parseNum(ordered) : 0;
-    let prodNum = hasProd ? parseNum(produced) : 0;
-    if(!hasProd && hasOrd) prodNum = 0;
-    const ordStr = formatNumber(ordNum, digits);
-    const prodStr = formatNumber(prodNum, digits);
-    return `${ordStr}/${prodStr}`;
-  }
-
-  function buildProductionMap(text){
-    text = (text||'').replace(/^\uFEFF/,'').trim();
-    if(!text) return new Map();
-    const rows = parseCSV(text);
-    if(!rows.length) return new Map();
-    const header = rows[0].map(normalizeProdHeader);
-    const idx = (...names)=>{
-      const lookups = names.map(normalizeProdHeader);
-      for(let i=0;i<header.length;i++){
-        if(lookups.includes(header[i])) return i;
-      }
-      return -1;
-    };
-    const iBroj = idx('brojzahteva','broj','nalog','brojnaloga');
-    const iArt  = idx('artikal','artikl','sifra','šifra','sifraartikla');
-    const iM1   = idx('m1','m¹');
-    const iM2   = idx('m2','m²');
-    const iM3   = idx('m3','m³');
-    const iKom  = idx('kom','komada');
-    const map = new Map();
-    if(iBroj<0 || iArt<0) return map;
-    rows.slice(1).forEach(cols=>{
-      if(!cols) return;
-      const brojRaw = (cols[iBroj]||'').trim();
-      const artRaw = (cols[iArt]||'').trim();
-      const brojKey = normalizeOrderKey(brojRaw);
-      const artKey = normalizeArtKey(artRaw);
-      if(!brojKey || !artKey) return;
-      const key = prodKey(brojKey, artKey);
-      if(!map.has(key)) map.set(key, {m1:0,m2:0,m3:0,kom:0});
-      const entry = map.get(key);
-      if(iM1>=0) entry.m1 += parseNum(cols[iM1]);
-      if(iM2>=0) entry.m2 += parseNum(cols[iM2]);
-      if(iM3>=0) entry.m3 += parseNum(cols[iM3]);
-      if(iKom>=0) entry.kom += parseNum(cols[iKom]);
-    });
-    return map;
-  }
-
-  async function fetchProductionTotals(force=false){
-    if(force){
-      _productionCache = null;
-      _productionPromise = null;
-    }
-    if(_productionCache) return _productionCache;
-    if(_productionPromise) return _productionPromise;
-    const promise = (async ()=>{
-      for(const url of PRODUCTION_CSV_URLS){
-        try{
-          const full = url + (url.includes('?')?'&':'?') + 'ts=' + Date.now();
-          const res = await fetch(full, {cache:'no-store'});
-          if(!res.ok) continue;
-          const text = await res.text();
-          const map = buildProductionMap(text);
-          if(map instanceof Map) _productionCache = map;
-          return map;
-        }catch(_){ /* try next */ }
-      }
-      throw new Error('PRODUCTION_CSV_UNAVAILABLE');
-    })();
-    _productionPromise = promise.catch(err=>{
-      console.warn('Proizvodnja CSV load error', err);
-      return new Map();
-    }).finally(()=>{ _productionPromise = null; });
-    return _productionPromise;
-  }
-
-  function getProductionEntry(map, broj, sifra, dimenzije){
-    if(!(map instanceof Map)) return null;
-    const brojKey = normalizeOrderKey(broj);
-    if(!brojKey) return null;
-    const attempts = [];
-    if(sifra) attempts.push(prodKey(brojKey, normalizeArtKey(sifra)));
-    if(dimenzije) attempts.push(prodKey(brojKey, normalizeArtKey(dimenzije)));
-    for(const key of attempts){
-      if(key && map.has(key)) return map.get(key);
-    }
-    return null;
-  }
-
-  function fillTable(orders, productionMap){
-    if(!Array.isArray(orders)){
-      window._ORDERS_CACHE = [];
-      return;
-    }
-    window._ORDERS_CACHE = orders.slice();
-    const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
-    filtered.sort(_sorter.current);
-    const prodMap = productionMap instanceof Map ? productionMap : new Map();
-    filtered.forEach(n=>{
-      const tr = document.createElement('tr');
-      const dt = n.vreme ? new Date(n.vreme) : null;
-      const artikliHtml = [];
-      const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
-      (n.stavke||[]).forEach(s=>{
-        const unitNorm = (s.jedinica||'').toString().toLowerCase().replace(/\s+/g,'').replace(/¹/g,'1').replace(/²/g,'2').replace(/³/g,'3');
-        const prod = getProductionEntry(prodMap, n.broj, s.sifra, s.dimenzije) || {m1:0,m2:0,m3:0,kom:0};
-        const isM1 = unitNorm === 'm1';
-        const isM3 = unitNorm === 'm3';
-        const isKom = unitNorm === 'kom';
-        const isM2 = unitNorm === 'm2' || (!isM1 && !isM3 && !isKom);
-        const m1Ordered = isM1 ? s.kolicina : s.m1;
-        const m2Ordered = isM2 ? s.kolicina : s.m2;
-        const m3Ordered = isM3 ? s.kolicina : s.m3;
-        const komOrdered = isKom ? s.kolicina : s.kom;
-        artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
-        m1Html.push(`<div class="line-item">${formatQty(m1Ordered, prod.m1, 2)}</div>`);
-        m2Html.push(`<div class="line-item">${formatQty(m2Ordered, prod.m2, 2)}</div>`);
-        m3Html.push(`<div class="line-item">${formatQty(m3Ordered, prod.m3, 3)}</div>`);
-        komHtml.push(`<div class="line-item">${formatQty(komOrdered, prod.kom, 0)}</div>`);
-      });
-      tr.innerHTML = `
-        <td class="nowrap"><b>${n.broj||''}</b></td>
-        <td>${n.firma||''}</td>
-        <td>${n.adresa||''}</td>
-        <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
-        <td>${artikliHtml.join('')}</td>
-        <td class="right">${m1Html.join('')}</td>
-        <td class="right">${m2Html.join('')}</td>
-        <td class="right">${m3Html.join('')}</td>
-        <td class="right">${komHtml.join('')}</td>
-        <td class="right">${(n.stavke||[]).length}</td>
-        <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
-      tb.appendChild(tr);
-    });
-  }
-
-  async function renderFromText(text){
-    text = (text||'').replace(/^\uFEFF/,'');
+  function renderFromText(text){
     const rows = parseCSV(text.trim());
     if(!rows.length) return;
     const header = rows[0].map(normalizeHeader);
@@ -864,27 +634,92 @@ async function renderPregled(arg){
       };
     }).filter(n=>n.broj);
 
-codex/link-index-with-daily-production-report
-    const productionMap = await productionPromise;
-    fillTable(orders, productionMap || new Map());
+    window._ORDERS_CACHE = orders.slice();
+
+    const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+    filtered.sort(_sorter.current);
+
+      filtered.forEach(n=>{
+        const tr = document.createElement('tr');
+        const dt = n.vreme ? new Date(n.vreme) : null;
+        const fmt = (v,d=2)=>{
+          if(v===undefined || v===null) return '';
+          if(typeof v === 'string' && v.trim()==='') return '';
+          const num = Number(v);
+          if(Number.isNaN(num)) return '';
+          return num.toFixed(d);
+        };
+        const artikliHtml = [];
+        const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
+        (n.stavke||[]).forEach(s=>{
+          const unit = (s.jedinica||'').toLowerCase();
+          artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
+          m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
+          m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
+          m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
+          komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
+        });
+        tr.innerHTML = `
+          <td class="nowrap"><b>${n.broj||''}</b></td>
+          <td>${n.firma||''}</td>
+          <td>${n.adresa||''}</td>
+          <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
+          <td>${artikliHtml.join('')}</td>
+          <td class="right qty-col">${m1Html.join('')}</td>
+          <td class="right qty-col">${m2Html.join('')}</td>
+          <td class="right qty-col">${m3Html.join('')}</td>
+          <td class="right qty-col">${komHtml.join('')}</td>
+          <td class="right">${(n.stavke||[]).length}</td>
+          <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+        tb.appendChild(tr);
+      });
   }
 
-  try{
-    const text = await tryFetch('data/zahtevi.csv');
-    await renderFromText(text);
-  }catch(_){
-    try{
-      const text = await tryFetch('/data/zahtevi.csv');
-      await renderFromText(text);
-    }catch(_2){
+  // Try relative and absolute CSV
+  tryFetch('data/zahtevi.csv')
+    .then(renderFromText)
+    .catch(()=> tryFetch('/data/zahtevi.csv').then(renderFromText).catch(()=>{
+      // Final fallback: localStorage
       try{
         const orders = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]')||[];
-codex/link-index-with-daily-production-report
-        const productionMap = await productionPromise;
-        fillTable(Array.isArray(orders)?orders:[], productionMap || new Map());
-      }catch(_3){}
-    }
-  }
+        window._ORDERS_CACHE = orders.slice();
+        const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+        filtered.sort(_sorter.current);
+          filtered.forEach(n=>{
+            const tr = document.createElement('tr');
+            const fmt = (v,d=2)=>{
+              if(v===undefined || v===null) return '';
+              if(typeof v === 'string' && v.trim()==='') return '';
+              const num = Number(v);
+              if(Number.isNaN(num)) return '';
+              return num.toFixed(d);
+            };
+            const artikliHtml = [];
+            const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
+            (n.stavke||[]).forEach(s=>{
+              const unit = (s.jedinica||'').toLowerCase();
+              artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
+              m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
+              m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
+              m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
+              komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
+            });
+            tr.innerHTML = `
+              <td class="nowrap"><b>${n.broj}</b></td>
+              <td>${n.firma||''}</td>
+              <td>${n.adresa||''}</td>
+              <td class="nowrap">${new Date(n.vreme).toLocaleString()}</td>
+              <td>${artikliHtml.join('')}</td>
+              <td class="right qty-col">${m1Html.join('')}</td>
+              <td class="right qty-col">${m2Html.join('')}</td>
+              <td class="right qty-col">${m3Html.join('')}</td>
+              <td class="right qty-col">${komHtml.join('')}</td>
+              <td class="right">${(n.stavke||[]).length}</td>
+              <td class="right"><button class="secondary" data-open="${n.broj}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+            tb.appendChild(tr);
+          });
+      }catch(_){}
+    }));
 }
 
 
@@ -927,7 +762,7 @@ codex/link-index-with-daily-production-report
     q('#modalBack').addEventListener('click', (e)=>{ if(e.target.id==='modalBack') e.currentTarget.style.display='none'; });
 
     // Tools
-    q('#osveziPregled').addEventListener('click', ()=>renderPregled({forceProd:true}));
+    q('#osveziPregled').addEventListener('click', renderPregled);
     q('#filterInput').addEventListener('input', renderPregled);
     q('#exportCSV').addEventListener('click', exportCSV);
     q('#printBtn').addEventListener('click', ()=>window.print());
