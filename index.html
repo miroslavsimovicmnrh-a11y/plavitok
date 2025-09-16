@@ -745,9 +745,18 @@ async function renderPregled(){
     const rows = parseCSV(text);
     if(rows.length<=1) return new Map();
     const header = rows[0].map(normalizeHeader);
-    const idx = (name)=> header.indexOf(normalizeHeader(name));
-    const iBroj = idx('brojzahteva');
-    const iArt  = idx('artikal');
+    const idx = (name)=>{
+      if(Array.isArray(name)){
+        for(const n of name){
+          const i = header.indexOf(normalizeHeader(n));
+          if(i>=0) return i;
+        }
+        return -1;
+      }
+      return header.indexOf(normalizeHeader(name));
+    };
+    const iBroj = idx(['brojzahteva','brojnaloga','broj naloga','broj']);
+    const iArt  = idx(['artikal','sifra']);
     const iM1   = idx('m1');
     const iM2   = idx('m2');
     const iM3   = idx('m3');
@@ -788,14 +797,16 @@ async function renderPregled(){
 
   async function fetchProduction(){
     const urls = ['data/proizvodnja.csv','/data/proizvodnja.csv'];
+    let lastError = null;
     for(const url of urls){
       try{
         const res = await fetch(url + (url.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'});
         if(!res.ok) throw new Error('HTTP '+res.status);
         const text = await res.text();
         return parseProduction(text);
-      }catch(_){ }
+      }catch(err){ lastError = err; }
     }
+    console.warn('Upozorenje: data/proizvodnja.csv nije dostupna.', lastError || '');
     return new Map();
   }
 
