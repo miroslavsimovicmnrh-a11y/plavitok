@@ -898,6 +898,30 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <script>
 (function(){
+  const sink = document.getElementById('serverSink');
+  if(!sink || sink.__refreshPregledAttached) return;
+  sink.__refreshPregledAttached = true;
+  sink.addEventListener('load', async () => {
+    try{
+      if(typeof window.renderPregled === 'function'){
+        const r = window.renderPregled();
+        if(r && typeof r.then === 'function') await r;
+      }else if(typeof window.renderPregledCSV === 'function'){
+        const r = window.renderPregledCSV();
+        if(r && typeof r.then === 'function') await r;
+      }else{
+        window.location.reload();
+      }
+    }catch(err){
+      console.warn('Greška pri osvežavanju pregleda proizvodnje', err);
+    }
+  });
+})();
+</script>
+
+
+<script>
+(function(){
   const q = s => document.querySelector(s);
   function setTab(which){
   const actions = document.getElementById("unosActions");
