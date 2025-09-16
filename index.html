@@ -128,6 +128,8 @@
     .line-item{border-bottom:1px solid #141a33;padding:2px 0}
     .line-item:last-child{border-bottom:none}
     .right .line-item{text-align:right}
+    .qty-col{min-width:80px;text-align:right;font-variant-numeric:tabular-nums;}
+    .qty-col .line-item{display:flex;justify-content:flex-end;text-align:right;font-variant-numeric:inherit;}
 
     /* STATS */
     .stat{ background: var(--glass-strong); border:1px solid var(--line); border-radius:16px; padding:14px; }
@@ -309,10 +311,10 @@
 <th data-sort="adresa">Adresa ⬍</th>
 <th class="nowrap" data-sort="vreme">Kreirano ⬍</th>
 <th>Artikli</th>
-<th class="right nowrap">M¹</th>
-<th class="right nowrap">M²</th>
-<th class="right nowrap">M³</th>
-<th class="right nowrap">Kom</th>
+<th class="right nowrap qty-col">M¹</th>
+<th class="right nowrap qty-col">M²</th>
+<th class="right nowrap qty-col">M³</th>
+<th class="right nowrap qty-col">Kom</th>
 <th class="right nowrap"># stavki</th>
 <th class="right nowrap">Akcije</th>
 </tr>
@@ -650,10 +652,10 @@ function renderPregled(){
           <td>${n.adresa||''}</td>
           <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
           <td>${artikliHtml.join('')}</td>
-          <td class="right">${m1Html.join('')}</td>
-          <td class="right">${m2Html.join('')}</td>
-          <td class="right">${m3Html.join('')}</td>
-          <td class="right">${komHtml.join('')}</td>
+          <td class="right qty-col">${m1Html.join('')}</td>
+          <td class="right qty-col">${m2Html.join('')}</td>
+          <td class="right qty-col">${m3Html.join('')}</td>
+          <td class="right qty-col">${komHtml.join('')}</td>
           <td class="right">${(n.stavke||[]).length}</td>
           <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
         tb.appendChild(tr);
@@ -689,10 +691,10 @@ function renderPregled(){
               <td>${n.adresa||''}</td>
               <td class="nowrap">${new Date(n.vreme).toLocaleString()}</td>
               <td>${artikliHtml.join('')}</td>
-              <td class="right">${m1Html.join('')}</td>
-              <td class="right">${m2Html.join('')}</td>
-              <td class="right">${m3Html.join('')}</td>
-              <td class="right">${komHtml.join('')}</td>
+              <td class="right qty-col">${m1Html.join('')}</td>
+              <td class="right qty-col">${m2Html.join('')}</td>
+              <td class="right qty-col">${m3Html.join('')}</td>
+              <td class="right qty-col">${komHtml.join('')}</td>
               <td class="right">${(n.stavke||[]).length}</td>
               <td class="right"><button class="secondary" data-open="${n.broj}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
             tb.appendChild(tr);
