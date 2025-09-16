@@ -379,6 +379,13 @@
 
     const q = sel => document.querySelector(sel);
 
+    const parseOptionalNumber = (value)=>{
+      if(value===undefined || value===null) return null;
+      if(typeof value === 'string' && value.trim()==='') return null;
+      const num = Number(value);
+      return Number.isNaN(num) ? null : num;
+    };
+
     function pad(n){return String(n).padStart(4,'0');}
     function getOrders(){ try{return JSON.parse(localStorage.getItem(LS_ORDERS))||[]}catch{return[]} }
     function setOrders(arr){ localStorage.setItem(LS_ORDERS, JSON.stringify(arr)); }
@@ -477,14 +484,14 @@
       if(e.target.id==='addItem'){
         const sifra = q('#artikalSelect').value;
         const kolicina = q('#kolicina').value;
-        const m1 = q('#m1zahtev').value;
-        const m3 = q('#m3zahtev').value;
-        const kom = q('#komzahtev').value;
+        const m1 = parseOptionalNumber(q('#m1zahtev').value);
+        const m3 = parseOptionalNumber(q('#m3zahtev').value);
+        const kom = parseOptionalNumber(q('#komzahtev').value);
         const napomena = q('#napomena').value.trim();
         const a = ARTIKLI.find(x=>x.sifra===sifra);
         if(!a){ notify('Odaberi artikal', true); return; }
         if(!kolicina || Number(kolicina)<=0){ notify('Unesi količinu', true); return; }
-        STAVKE.push({ ...a, kolicina:Number(kolicina), m1: m1 ? Number(m1) : null, m3: m3 ? Number(m3) : null, kom: kom ? Number(kom) : null, napomena });
+        STAVKE.push({ ...a, kolicina:Number(kolicina), m1, m3, kom, napomena });
         renderStavke();
         q('#napomena').value='';
         q('#m1zahtev').value='';
@@ -635,7 +642,13 @@ function renderPregled(){
       filtered.forEach(n=>{
         const tr = document.createElement('tr');
         const dt = n.vreme ? new Date(n.vreme) : null;
-        const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
+        const fmt = (v,d=2)=>{
+          if(v===undefined || v===null) return '';
+          if(typeof v === 'string' && v.trim()==='') return '';
+          const num = Number(v);
+          if(Number.isNaN(num)) return '';
+          return num.toFixed(d);
+        };
         const artikliHtml = [];
         const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
         (n.stavke||[]).forEach(s=>{
@@ -674,7 +687,13 @@ function renderPregled(){
         filtered.sort(_sorter.current);
           filtered.forEach(n=>{
             const tr = document.createElement('tr');
-            const fmt = (v,d=2)=> v ? Number(v).toFixed(d) : '';
+            const fmt = (v,d=2)=>{
+              if(v===undefined || v===null) return '';
+              if(typeof v === 'string' && v.trim()==='') return '';
+              const num = Number(v);
+              if(Number.isNaN(num)) return '';
+              return num.toFixed(d);
+            };
             const artikliHtml = [];
             const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
             (n.stavke||[]).forEach(s=>{
