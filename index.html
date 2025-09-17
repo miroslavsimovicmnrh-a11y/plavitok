@@ -311,10 +311,18 @@
 <th data-sort="adresa">Adresa ⬍</th>
 <th class="nowrap" data-sort="vreme">Kreirano ⬍</th>
 <th>Artikli</th>
-<th class="right nowrap qty-col">M¹</th>
-<th class="right nowrap qty-col">M²</th>
-<th class="right nowrap qty-col">M³</th>
-<th class="right nowrap qty-col">Kom</th>
+<th class="right nowrap qty-col">M¹ plan</th>
+<th class="right nowrap qty-col">M¹ proizvedeno</th>
+<th class="right nowrap qty-col">M¹ razlika</th>
+<th class="right nowrap qty-col">M² plan</th>
+<th class="right nowrap qty-col">M² proizvedeno</th>
+<th class="right nowrap qty-col">M² razlika</th>
+<th class="right nowrap qty-col">M³ plan</th>
+<th class="right nowrap qty-col">M³ proizvedeno</th>
+<th class="right nowrap qty-col">M³ razlika</th>
+<th class="right nowrap qty-col">Kom plan</th>
+<th class="right nowrap qty-col">Kom proizvedeno</th>
+<th class="right nowrap qty-col">Kom razlika</th>
 <th class="right nowrap"># stavki</th>
 <th class="right nowrap">Akcije</th>
 </tr>
@@ -342,7 +350,7 @@
 </div>
 <div class="table-scroll">
 <table id="detTabela">
-<thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">M²</th><th class="right">M¹</th><th class="right">M³</th><th class="right">Kom</th><th>Napomena</th></tr></thead>
+<thead><tr><th>Šifra</th><th>Dimenzije</th><th>JM</th><th class="right">Plan M¹</th><th class="right">Plan M²</th><th class="right">Plan M³</th><th class="right">Plan Kom</th><th class="right">Proizvedeno M¹</th><th class="right">Proizvedeno M²</th><th class="right">Proizvedeno M³</th><th class="right">Proizvedeno Kom</th><th class="right">Razlika M¹</th><th class="right">Razlika M²</th><th class="right">Razlika M³</th><th class="right">Razlika Kom</th><th>Napomena</th></tr></thead>
 <tbody></tbody>
 </table>
 </div>
@@ -568,10 +576,93 @@
     }
 
     // Pregled
-    
+
+const PRODUKCIJA_UNITS = ['m1','m2','m3','kom'];
+const PRODUKCIJA_DECIMALS = { m1:2, m2:2, m3:3, kom:0 };
+let PRODUKCIJA_MAP = {};
+let PRODUKCIJA_PROMISE = null;
+let RENDER_PREGLED_TOKEN = 0;
+
+function normalizeNalog(value){
+  const str = (value||'').toString().trim();
+  if(!str) return '';
+  const withoutLeading = str.replace(/^0+/, '');
+  return withoutLeading || '0';
+}
+function normalizeArtikal(value){
+  return (value||'').toString().trim().toLowerCase();
+}
+function parseQty(value){
+  if(value===undefined || value===null) return null;
+  if(typeof value === 'number'){ return Number.isFinite(value) ? value : null; }
+  const str = value.toString().trim();
+  if(!str) return null;
+  const normalized = str.replace(/\s+/g,'').replace(',', '.');
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : null;
+}
+function formatQtyValue(value, decimals=2){
+  const num = typeof value === 'number' ? value : parseQty(value);
+  if(num===null) return '';
+  const normalized = Math.abs(num) < 1e-9 ? 0 : num;
+  return normalized.toFixed(decimals);
+}
+function getPlanValueForUnit(unitKey, stavka, unitName){
+  switch(unitKey){
+    case 'm1': return (unitName==='m1'||unitName==='m¹') ? stavka.kolicina : stavka.m1;
+    case 'm2': return (unitName==='m2'||unitName==='m²'||!['m1','m3','kom'].includes(unitName)) ? stavka.kolicina : stavka.m2;
+    case 'm3': return (unitName==='m3'||unitName==='m³') ? stavka.kolicina : stavka.m3;
+    case 'kom': return (unitName==='kom') ? stavka.kolicina : stavka.kom;
+    default: return null;
+  }
+}
+function computeStavkaMetrics(orderNo, stavka, produkcija){
+  const normBroj = normalizeNalog(orderNo);
+  const normSifra = normalizeArtikal(stavka && stavka.sifra);
+  const unitName = ((stavka && stavka.jedinica) || '').toLowerCase();
+  const orderEntry = produkcija && produkcija[normBroj];
+  const prodEntry = orderEntry && orderEntry[normSifra];
+  const metrics = {};
+  PRODUKCIJA_UNITS.forEach(key=>{
+    const planRaw = getPlanValueForUnit(key, stavka||{}, unitName);
+    const planNum = parseQty(planRaw);
+    const producedNum = prodEntry ? parseQty(prodEntry[key]) : null;
+    const hasData = planNum !== null || producedNum !== null;
+    const diffNum = hasData ? ((planNum || 0) - (producedNum || 0)) : null;
+    metrics[key] = { plan: planNum, produced: producedNum, diff: diffNum, hasData };
+  });
+  return metrics;
+}
+function augmentOrdersWithProdukcija(orders, produkcija){
+  if(!Array.isArray(orders)) return orders;
+  orders.forEach(n=>{
+    const normBroj = normalizeNalog(n && n.broj);
+    (n && n.stavke || []).forEach(s=>{
+      const metrics = computeStavkaMetrics(normBroj, s, produkcija||{});
+      s._metrics = metrics;
+      s._produkcija = {};
+      s._razlika = {};
+      PRODUKCIJA_UNITS.forEach(key=>{
+        s._produkcija[key] = metrics[key].produced;
+        s._razlika[key] = metrics[key].hasData ? metrics[key].diff : null;
+      });
+    });
+  });
+  return orders;
+}
+function ensureOrderMetrics(nalog, produkcija){
+  if(!nalog) return nalog;
+  const needs = (nalog.stavke||[]).some(s=>!s._metrics);
+  if(needs){
+    augmentOrdersWithProdukcija([nalog], produkcija||{});
+  }
+  return nalog;
+}
+
 function renderPregled(){
   const tb = document.querySelector('#pregledTable tbody');
   if(!tb) return;
+  const token = ++RENDER_PREGLED_TOKEN;
   tb.innerHTML='';
   const filterEl = document.querySelector('#filterInput');
   const filter = (filterEl && filterEl.value ? filterEl.value : '').toLowerCase();
@@ -580,8 +671,9 @@ function renderPregled(){
     .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); });
 
   function parseCSV(text){
-    text = text.replace(/^\uFEFF/, '');
-    const first = text.split(/\r?\n/,1)[0] || '';
+    text = text.replace(/^﻿/, '');
+    const first = text.split(/?
+/,1)[0] || '';
     const delim = first.includes(';') ? ';' : ',';
     const rows = [];
     let i=0, field='', row=[], inQuotes=false;
@@ -591,8 +683,10 @@ function renderPregled(){
         if(inQuotes && text[i+1] === '"'){ field+='"'; i+=2; continue; }
         inQuotes = !inQuotes; i++; continue;
       }
-      if(!inQuotes && (ch === '\n' || ch === '\r')){
-        if(ch === '\r' && text[i+1]==='\n') i++;
+      if(!inQuotes && (ch === '
+' || ch === '')){
+        if(ch === '' && text[i+1]=='
+') i++;
         row.push(field); field='';
         if(row.length>1 || (row.length===1 && row[0]!=='')) rows.push(row);
         row=[]; i++; continue;
@@ -610,117 +704,170 @@ function renderPregled(){
     return (h||'').toString().trim().toLowerCase();
   }
 
-  function renderFromText(text){
-    const rows = parseCSV(text.trim());
-    if(!rows.length) return;
-    const header = rows[0].map(normalizeHeader);
-    const idx = (name)=> header.indexOf(normalizeHeader(name));
-    const iBroj   = idx('broj')>=0 ? idx('broj') : 0;
-    const iFirma  = idx('firma');
-    const iAdresa = idx('adresa');
-    const iVreme  = idx('vreme');
-    const iStavke = (idx('stavke_json') >= 0) ? idx('stavke_json') : idx('stavke');
-
-    const orders = rows.slice(1).map(cols=>{
-      let stavke=[];
-      const rawStavke = iStavke>=0 ? (cols[iStavke]||'') : '';
-      if(rawStavke){ try{ stavke = JSON.parse(rawStavke); }catch(_){ stavke=[]; } }
-      return {
-        broj:   (cols[iBroj]||'').trim(),
-        firma:  iFirma>=0  ? (cols[iFirma]||'').trim()  : '',
-        adresa: iAdresa>=0 ? (cols[iAdresa]||'').trim() : '',
-        vreme:  iVreme>=0  ? (cols[iVreme]||'').trim()  : '',
-        stavke
-      };
-    }).filter(n=>n.broj);
-
-    window._ORDERS_CACHE = orders.slice();
-
-    const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
-    filtered.sort(_sorter.current);
-
-      filtered.forEach(n=>{
-        const tr = document.createElement('tr');
-        const dt = n.vreme ? new Date(n.vreme) : null;
-        const fmt = (v,d=2)=>{
-          if(v===undefined || v===null) return '';
-          if(typeof v === 'string' && v.trim()==='') return '';
-          const num = Number(v);
-          if(Number.isNaN(num)) return '';
-          return num.toFixed(d);
-        };
-        const artikliHtml = [];
-        const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
-        (n.stavke||[]).forEach(s=>{
-          const unit = (s.jedinica||'').toLowerCase();
-          artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
-          m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
-          m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
-          m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
-          komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
-        });
-        tr.innerHTML = `
-          <td class="nowrap"><b>${n.broj||''}</b></td>
-          <td>${n.firma||''}</td>
-          <td>${n.adresa||''}</td>
-          <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
-          <td>${artikliHtml.join('')}</td>
-          <td class="right qty-col">${m1Html.join('')}</td>
-          <td class="right qty-col">${m2Html.join('')}</td>
-          <td class="right qty-col">${m3Html.join('')}</td>
-          <td class="right qty-col">${komHtml.join('')}</td>
-          <td class="right">${(n.stavke||[]).length}</td>
-          <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
-        tb.appendChild(tr);
-      });
+  async function loadProdukcija(){
+    if(PRODUKCIJA_PROMISE) return PRODUKCIJA_PROMISE;
+    PRODUKCIJA_PROMISE = (async()=>{
+      try{
+        let text;
+        try{
+          text = await tryFetch('data/proizvodnja.csv');
+        }catch(err){
+          text = await tryFetch('/data/proizvodnja.csv');
+        }
+        const rows = parseCSV((text||'').trim());
+        if(!rows.length){
+          PRODUKCIJA_MAP = {};
+          window._PRODUKCIJA = PRODUKCIJA_MAP;
+          return PRODUKCIJA_MAP;
+        }
+        const header = rows[0].map(normalizeHeader);
+        const idx = (name)=> header.indexOf(normalizeHeader(name));
+        const findIdx = (names)=>{ for(const name of names){ const i = idx(name); if(i>=0) return i; } return -1; };
+        const iBroj = findIdx(['broj zahteva','broj_zahteva','broj naloga','brojnaloga','broj','nalog','zahtev']);
+        const iArt = findIdx(['artikal','artikl','sifra','šifra','šifra artikla','sifra artikla']);
+        const iM1 = findIdx(['m1','m¹']);
+        const iM2 = findIdx(['m2','m²']);
+        const iM3 = findIdx(['m3','m³']);
+        const iKom = findIdx(['kom','komada','komad','kolicina','količina']);
+        const map = {};
+        for(let r=1; r<rows.length; r++){
+          const cols = rows[r];
+          if(!cols || cols.every(c=>(c||'').trim()==='')) continue;
+          const broj = normalizeNalog(iBroj>=0 ? cols[iBroj] : cols[0]);
+          const sifra = normalizeArtikal(iArt>=0 ? cols[iArt] : cols[1]);
+          if(!broj || !sifra) continue;
+          const orderEntry = map[broj] || (map[broj] = {});
+          const artEntry = orderEntry[sifra] || (orderEntry[sifra] = {m1:0,m2:0,m3:0,kom:0});
+          if(iM1>=0){ const v = parseQty(cols[iM1]); if(v!==null) artEntry.m1 += v; }
+          if(iM2>=0){ const v = parseQty(cols[iM2]); if(v!==null) artEntry.m2 += v; }
+          if(iM3>=0){ const v = parseQty(cols[iM3]); if(v!==null) artEntry.m3 += v; }
+          if(iKom>=0){ const v = parseQty(cols[iKom]); if(v!==null) artEntry.kom += v; }
+        }
+        PRODUKCIJA_MAP = map;
+        window._PRODUKCIJA = PRODUKCIJA_MAP;
+        return PRODUKCIJA_MAP;
+      }catch(err){
+        console.warn('Greška pri učitavanju proizvodnje', err);
+        PRODUKCIJA_MAP = {};
+        window._PRODUKCIJA = PRODUKCIJA_MAP;
+        return PRODUKCIJA_MAP;
+      }finally{
+        PRODUKCIJA_PROMISE = null;
+      }
+    })();
+    return PRODUKCIJA_PROMISE;
   }
 
-  // Try relative and absolute CSV
+  const wrapLine = (value)=> `<div class="line-item">${value}</div>`;
+  const joinLines = (list)=> list.length ? list.join('') : wrapLine('—');
+
+  function buildRow(n, produkcija){
+    const tr = document.createElement('tr');
+    const dt = n.vreme ? new Date(n.vreme) : null;
+    const artikliHtml = [];
+    const planHtml = {m1:[],m2:[],m3:[],kom:[]};
+    const prodHtml = {m1:[],m2:[],m3:[],kom:[]};
+    const diffHtml = {m1:[],m2:[],m3:[],kom:[]};
+    (n.stavke||[]).forEach(s=>{
+      const metrics = (s && s._metrics) || computeStavkaMetrics(n.broj, s, produkcija);
+      if(s && !s._metrics){
+        s._metrics = metrics;
+        s._produkcija = s._produkcija || {};
+        s._razlika = s._razlika || {};
+        PRODUKCIJA_UNITS.forEach(key=>{
+          s._produkcija[key] = metrics[key].produced;
+          s._razlika[key] = metrics[key].hasData ? metrics[key].diff : null;
+        });
+      }
+      const sifra = (s && s.sifra) ? s.sifra : '—';
+      artikliHtml.push(wrapLine(sifra));
+      PRODUKCIJA_UNITS.forEach(key=>{
+        const decimals = PRODUKCIJA_DECIMALS[key];
+        const planDisplay = metrics[key].plan !== null ? formatQtyValue(metrics[key].plan, decimals) : '—';
+        const producedDisplay = metrics[key].hasData ? formatQtyValue(metrics[key].produced!=null?metrics[key].produced:0, decimals) : '—';
+        const diffDisplay = metrics[key].hasData ? formatQtyValue(metrics[key].diff!=null?metrics[key].diff:0, decimals) : '—';
+        planHtml[key].push(wrapLine(planDisplay));
+        prodHtml[key].push(wrapLine(producedDisplay));
+        diffHtml[key].push(wrapLine(diffDisplay));
+      });
+    });
+    const unitColumns = PRODUKCIJA_UNITS.map(key=>
+      `<td class="right qty-col">${joinLines(planHtml[key])}</td>`+
+      `<td class="right qty-col">${joinLines(prodHtml[key])}</td>`+
+      `<td class="right qty-col">${joinLines(diffHtml[key])}</td>`
+    ).join('');
+    tr.innerHTML = `
+      <td class="nowrap"><b>${n.broj||''}</b></td>
+      <td>${n.firma||''}</td>
+      <td>${n.adresa||''}</td>
+      <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
+      <td>${joinLines(artikliHtml)}</td>
+      ${unitColumns}
+      <td class="right">${(n.stavke||[]).length}</td>
+      <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+    return tr;
+  }
+
+  async function renderFromText(text){
+    try{
+      const rows = parseCSV((text||'').trim());
+      if(!rows.length) return;
+      const header = rows[0].map(normalizeHeader);
+      const idx = (name)=> header.indexOf(normalizeHeader(name));
+      const iBroj   = idx('broj')>=0 ? idx('broj') : 0;
+      const iFirma  = idx('firma');
+      const iAdresa = idx('adresa');
+      const iVreme  = idx('vreme');
+      const iStavke = (idx('stavke_json') >= 0) ? idx('stavke_json') : idx('stavke');
+
+      const orders = rows.slice(1).map(cols=>{
+        let stavke=[];
+        const rawStavke = iStavke>=0 ? (cols[iStavke]||'') : '';
+        if(rawStavke){ try{ stavke = JSON.parse(rawStavke); }catch(_){ stavke=[]; } }
+        return {
+          broj:   (cols[iBroj]||'').trim(),
+          firma:  iFirma>=0  ? (cols[iFirma]||'').trim()  : '',
+          adresa: iAdresa>=0 ? (cols[iAdresa]||'').trim() : '',
+          vreme:  iVreme>=0  ? (cols[iVreme]||'').trim()  : '',
+          stavke
+        };
+      }).filter(n=>n.broj);
+
+      const produkcija = await loadProdukcija();
+      if(token !== RENDER_PREGLED_TOKEN) return;
+
+      augmentOrdersWithProdukcija(orders, produkcija);
+      window._ORDERS_CACHE = orders.slice();
+
+      const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+      filtered.sort(_sorter.current);
+
+      if(token !== RENDER_PREGLED_TOKEN) return;
+      filtered.forEach(n=> tb.appendChild(buildRow(n, produkcija)));
+    }catch(err){
+      console.warn('Greška pri obradi CSV zahteva', err);
+    }
+  }
+
   tryFetch('data/zahtevi.csv')
     .then(renderFromText)
-    .catch(()=> tryFetch('/data/zahtevi.csv').then(renderFromText).catch(()=>{
-      // Final fallback: localStorage
+    .catch(()=> tryFetch('/data/zahtevi.csv').then(renderFromText).catch(async ()=>{
       try{
         const orders = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]')||[];
+        const produkcija = await loadProdukcija();
+        if(token !== RENDER_PREGLED_TOKEN) return;
+        augmentOrdersWithProdukcija(orders, produkcija);
         window._ORDERS_CACHE = orders.slice();
         const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
         filtered.sort(_sorter.current);
-          filtered.forEach(n=>{
-            const tr = document.createElement('tr');
-            const fmt = (v,d=2)=>{
-              if(v===undefined || v===null) return '';
-              if(typeof v === 'string' && v.trim()==='') return '';
-              const num = Number(v);
-              if(Number.isNaN(num)) return '';
-              return num.toFixed(d);
-            };
-            const artikliHtml = [];
-            const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
-            (n.stavke||[]).forEach(s=>{
-              const unit = (s.jedinica||'').toLowerCase();
-              artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
-              m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
-              m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
-              m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
-              komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
-            });
-            tr.innerHTML = `
-              <td class="nowrap"><b>${n.broj}</b></td>
-              <td>${n.firma||''}</td>
-              <td>${n.adresa||''}</td>
-              <td class="nowrap">${new Date(n.vreme).toLocaleString()}</td>
-              <td>${artikliHtml.join('')}</td>
-              <td class="right qty-col">${m1Html.join('')}</td>
-              <td class="right qty-col">${m2Html.join('')}</td>
-              <td class="right qty-col">${m3Html.join('')}</td>
-              <td class="right qty-col">${komHtml.join('')}</td>
-              <td class="right">${(n.stavke||[]).length}</td>
-              <td class="right"><button class="secondary" data-open="${n.broj}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
-            tb.appendChild(tr);
-          });
-      }catch(_){}
+        if(token !== RENDER_PREGLED_TOKEN) return;
+        filtered.forEach(n=> tb.appendChild(buildRow(n, produkcija)));
+      }catch(err){
+        console.warn('Lokalni fallback neuspešan', err);
+      }
     }));
 }
+
 
 
     // Sort logic
@@ -738,11 +885,18 @@ function renderPregled(){
     });
 
     // Open modal details
-    document.addEventListener('click', (e)=>{
+    document.addEventListener('click', async (e)=>{
       const broj = e.target.getAttribute && e.target.getAttribute('data-open');
       if(!broj) return;
-      const nalog = getOrders().find(n=>n.broj===broj);
+      const cache = Array.isArray(window._ORDERS_CACHE) ? window._ORDERS_CACHE : [];
+      let nalog = cache.find(n=>n.broj===broj);
+      if(!nalog){
+        nalog = getOrders().find(n=>n.broj===broj);
+      }
       if(!nalog) return;
+      if(PRODUKCIJA_PROMISE){ try{ await PRODUKCIJA_PROMISE; }catch(_){ } }
+      const produkcija = window._PRODUKCIJA || PRODUKCIJA_MAP || {};
+      ensureOrderMetrics(nalog, produkcija);
       showModal(nalog);
     });
     function showModal(nalog){
@@ -751,9 +905,38 @@ function renderPregled(){
       q('#detAdresa').textContent = nalog.adresa;
       q('#detVreme').textContent = new Date(nalog.vreme).toLocaleString();
       const tb = q('#detTabela tbody'); tb.innerHTML='';
-      nalog.stavke.forEach(s=>{
+      const produkcija = window._PRODUKCIJA || PRODUKCIJA_MAP || {};
+      ensureOrderMetrics(nalog, produkcija);
+      (nalog.stavke||[]).forEach(s=>{
+        const metrics = s._metrics || computeStavkaMetrics(nalog.broj, s, produkcija);
+        if(!s._metrics) s._metrics = metrics;
+        const plan = {};
+        const proizvedeno = {};
+        const razlika = {};
+        PRODUKCIJA_UNITS.forEach(key=>{
+          const decimals = PRODUKCIJA_DECIMALS[key];
+          plan[key] = metrics[key].plan !== null ? formatQtyValue(metrics[key].plan, decimals) : '—';
+          proizvedeno[key] = metrics[key].hasData ? formatQtyValue(metrics[key].produced!=null?metrics[key].produced:0, decimals) : '—';
+          razlika[key] = metrics[key].hasData ? formatQtyValue(metrics[key].diff!=null?metrics[key].diff:0, decimals) : '—';
+        });
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${s.sifra}</td><td>${s.dimenzije}</td><td>${s.jedinica}</td><td class="right">${Number(s.kolicina).toFixed(3)}</td><td class="right">${s.m1!=null?Number(s.m1).toFixed(2):''}</td><td class="right">${s.m3!=null?Number(s.m3).toFixed(3):''}</td><td class="right">${s.kom!=null?Number(s.kom).toFixed(0):''}</td><td>${s.napomena||''}</td>`;
+        tr.innerHTML = `
+          <td>${s.sifra||''}</td>
+          <td>${s.dimenzije||''}</td>
+          <td>${s.jedinica||''}</td>
+          <td class="right">${plan.m1}</td>
+          <td class="right">${plan.m2}</td>
+          <td class="right">${plan.m3}</td>
+          <td class="right">${plan.kom}</td>
+          <td class="right">${proizvedeno.m1}</td>
+          <td class="right">${proizvedeno.m2}</td>
+          <td class="right">${proizvedeno.m3}</td>
+          <td class="right">${proizvedeno.kom}</td>
+          <td class="right">${razlika.m1}</td>
+          <td class="right">${razlika.m2}</td>
+          <td class="right">${razlika.m3}</td>
+          <td class="right">${razlika.kom}</td>
+          <td>${s.napomena||''}</td>`;
         tb.appendChild(tr);
       });
       q('#modalBack').style.display='flex';
