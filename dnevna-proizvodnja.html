@@ -1128,7 +1128,29 @@ function normalizeRequestNumber(v){
   return cleaned || '0';
 }
 function normalizeArticleKey(v){
-  return (v||'').toString().trim().toLowerCase();
+  if(v===null || v===undefined) return '';
+  let str = (v||'').toString().trim();
+  if(!str) return '';
+
+  const unitMatch = str.match(/\s*\(([^)]+)\)\s*$/);
+  if(unitMatch){
+    const maybeUnit = unitMatch[1].trim();
+    if(maybeUnit){
+      const canonical = canonicalUnit(maybeUnit);
+      if(['m1','m2','m3','kom'].includes(canonical)){
+        str = str.slice(0, unitMatch.index).trim();
+      }
+    }
+  }
+
+  str = str.replace(/\s[–—-]\s*.*$/, '').replace(/[–—-]\s*$/, '');
+  if(!str) return '';
+
+  str = str.toLowerCase();
+  str = str.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  str = str.replace(/đ/g,'d').replace(/ž/g,'z').replace(/č/g,'c').replace(/ć/g,'c').replace(/š/g,'s');
+
+  return str.trim();
 }
 function parseCSVFlexible(text){
   text = text.replace(/^\uFEFF/, '');
