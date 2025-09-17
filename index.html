@@ -611,7 +611,7 @@
     // Pregled
 
 let _renderPregledSeq = 0;
-async function renderPregled(){
+async function renderPregled(options = {}){
   const tb = document.querySelector('#pregledTable tbody');
   if(!tb){
     ordersReady = true;
@@ -619,6 +619,7 @@ async function renderPregled(){
     return;
   }
   const seq = ++_renderPregledSeq;
+  const forceBust = options === true || (options && typeof options === 'object' && options.forceBust === true);
   tb.innerHTML='';
   const filterEl = document.querySelector('#filterInput');
   const filter = (filterEl && filterEl.value ? filterEl.value : '').toLowerCase();
@@ -824,7 +825,7 @@ async function renderPregled(){
     return map;
   }
 
-  async function fetchOrders(){
+  async function fetchOrders({ forceBust = false } = {}){
     const urls = ['data/zahtevi.csv','/data/zahtevi.csv'];
     let lastError = null;
     for(const url of urls){
@@ -836,6 +837,7 @@ async function renderPregled(){
         return parseOrdersFromText(text);
       }catch(err){
         lastError = err;
+        if(forceBust) continue;
         try{
           const res = await fetch(url, {cache:'no-store'});
           if(!res.ok) throw new Error('HTTP '+res.status);
@@ -853,7 +855,7 @@ async function renderPregled(){
     }catch(_){ return []; }
   }
 
-  async function fetchProduction(){
+  async function fetchProduction({ forceBust = false } = {}){
     const urls = ['data/proizvodnja.csv','/data/proizvodnja.csv'];
     let lastError = null;
     for(const url of urls){
@@ -865,6 +867,7 @@ async function renderPregled(){
         return parseProduction(text);
       }catch(err){
         lastError = err;
+        if(forceBust) continue;
         try{
           const res = await fetch(url, {cache:'no-store'});
           if(!res.ok) throw new Error('HTTP '+res.status);
@@ -877,7 +880,10 @@ async function renderPregled(){
     return new Map();
   }
 
-  const [fetchedOrders, productionTotals] = await Promise.all([fetchOrders(), fetchProduction()]);
+  const [fetchedOrders, productionTotals] = await Promise.all([
+    fetchOrders({forceBust}),
+    fetchProduction({forceBust})
+  ]);
   if(seq !== _renderPregledSeq) return;
 
   const localOrders = getOrders();
@@ -1001,7 +1007,7 @@ async function renderPregled(){
     q('#modalBack').addEventListener('click', (e)=>{ if(e.target.id==='modalBack') e.currentTarget.style.display='none'; });
 
     // Tools
-    q('#osveziPregled').addEventListener('click', renderPregled);
+    q('#osveziPregled').addEventListener('click', ()=>renderPregled({forceBust:true}));
     q('#filterInput').addEventListener('input', renderPregled);
     q('#exportCSV').addEventListener('click', exportCSV);
     q('#printBtn').addEventListener('click', ()=>window.print());
