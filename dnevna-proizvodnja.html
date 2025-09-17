@@ -145,6 +145,13 @@
     /* MICRO ANIMATIONS */
     @keyframes pulseLine{0%,100%{opacity:.35}50%{opacity:.75}}
     .pulse{animation:pulseLine 1.8s infinite}
+
+    .flash-card{animation:flashCard 1.1s ease}
+    @keyframes flashCard{
+      0%{box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 0 rgba(124,58,237,.0)}
+      45%{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 12px rgba(124,58,237,.25)}
+      100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 10px 30px rgba(0,0,0,.35)}
+    }
   
 /* Autocomplete status */
 #companiesStatus{ margin-left:8px }
@@ -334,6 +341,44 @@
 </div><!-- end sekcija-unos -->
 </div>
 <div class="hidden" id="sekcija-pregled" style="margin-top:16px;">
+<div class="card glow" id="planSummaryCard" style="margin-top:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h2 style="margin:0;">Plan vs realizacija</h2>
+      <div class="muted" id="planSummaryInfo">Rezime nije učitan</div>
+    </div>
+    <div class="row" style="gap:12px; flex-wrap:wrap;">
+      <div style="min-width:160px;">
+        <label for="filterZahtev">Broj zahteva</label>
+        <input type="text" id="filterZahtev" placeholder="npr. 123"/>
+      </div>
+      <div style="min-width:200px;">
+        <label for="filterArtikal">Artikal</label>
+        <input type="text" id="filterArtikal" placeholder="Šifra ili naziv"/>
+      </div>
+      <div style="min-width:180px;">
+        <label for="filterDatum">Datum proizvodnje</label>
+        <input type="date" id="filterDatum"/>
+      </div>
+    </div>
+  </div>
+  <div class="table-scroll" style="margin-top:12px;">
+    <table id="planTabela">
+      <thead>
+        <tr>
+          <th>Broj zahteva</th>
+          <th>Artikal</th>
+          <th class="right">Plan</th>
+          <th class="right">Proizvedeno</th>
+          <th class="right">Razlika</th>
+          <th>Napomena</th>
+          <th class="right nowrap">Akcije</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
 <div class="card" style="margin-top:20px;">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
 <h2 style="margin:0;">Sačuvani izveštaji</h2>
@@ -363,15 +408,43 @@
   <div class="modal">
     <div class="row" style="justify-content:space-between">
       <div class="row" style="gap:8px">
-        <span class="pill">Detalji izveštaja</span>
-        <span class="chip"><b id="detDatum"></b> • <b id="detBroj"></b></span>
+        <span class="pill">Detalji plana i proizvodnje</span>
+        <span class="chip" id="detChip"></span>
       </div>
       <button class="secondary" id="closePregled" style="width:auto">Zatvori</button>
     </div>
-    <div class="table-scroll" style="margin-top:8px">
+    <div class="row" style="margin-top:12px; gap:12px; flex-wrap:wrap;">
+      <div class="stat" style="flex:1 1 160px;">
+        <h4>Plan</h4>
+        <div class="big" id="detPlan">—</div>
+        <div class="muted" id="detPlanLabel"></div>
+      </div>
+      <div class="stat" style="flex:1 1 160px;">
+        <h4>Proizvedeno</h4>
+        <div class="big" id="detProizvedeno">—</div>
+        <div class="muted" id="detProizvedenoLabel"></div>
+      </div>
+      <div class="stat" style="flex:1 1 160px;">
+        <h4>Razlika</h4>
+        <div class="big" id="detRazlika">—</div>
+        <div class="muted" id="detRazlikaLabel"></div>
+      </div>
+    </div>
+    <div class="muted" id="detNapomena" style="margin-top:8px"></div>
+    <div class="table-scroll" style="margin-top:12px">
       <table id="detPregled">
         <thead>
-          <tr><th>Artikal</th><th class="right">M¹</th><th class="right">M²</th><th class="right">M³</th><th class="right">Kom</th><th>Napomena</th></tr>
+          <tr>
+            <th>Datum</th>
+            <th>Broj zahteva</th>
+            <th>Artikal</th>
+            <th class="right">M¹</th>
+            <th class="right">M²</th>
+            <th class="right">M³</th>
+            <th class="right">Kom</th>
+            <th>Napomena</th>
+            <th class="right nowrap">Akcije</th>
+          </tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -906,9 +979,16 @@ document.addEventListener("DOMContentLoaded", function(){
       if(typeof window.renderPregled === 'function'){
         const r = window.renderPregled();
         if(r && typeof r.then === 'function') await r;
+      }else if(typeof window.refreshPlanPregled === 'function'){
+        const focus = !document.getElementById('sekcija-pregled')?.classList.contains('hidden');
+        const r = window.refreshPlanPregled({focus});
+        if(r && typeof r.then === 'function') await r;
       }else if(typeof window.renderPregledCSV === 'function'){
         const r = window.renderPregledCSV();
-        if(r && typeof r.then === 'function') await r;
+        if(r && typeof r.then === 'function'){
+          const rows = await r;
+          if(typeof window.onPregledRendered === 'function') window.onPregledRendered(rows, {});
+        }
       }else{
         window.location.reload();
       }
@@ -931,7 +1011,7 @@ document.addEventListener("DOMContentLoaded", function(){
     q('#tabUnos')?.classList.toggle('tab-active', which==='unos');
     q('#tabPregled')?.classList.toggle('tab-active', which==='pregled');
     if(which==='unos'){ loadLastFromCSV(); }
-    if(which==='pregled'){ renderPregledCSV(); }
+    if(which==='pregled'){ refreshPlanPregled({focus:true}); }
   }
   q('#tabUnos')?.addEventListener('click', ()=>setTab('unos'));
   q('#tabPregled')?.addEventListener('click', ()=>setTab('pregled'));
@@ -991,70 +1071,566 @@ async function fetchCSVAll(){
   }
   return rows;
 }
+const KEY_SEP = '|||';
 function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 function fmt(v){ return (v && !isNaN(v)) ? Number(v).toFixed(2) : v; }
+function toNumber(value){
+  if(value===null || value===undefined) return 0;
+  if(typeof value==='number'){ return Number.isFinite(value) ? value : 0; }
+  const str = String(value).trim();
+  if(!str) return 0;
+  const normalized = str.replace(/\s+/g,'').replace(',', '.');
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : 0;
+}
+function canonicalUnit(unit){
+  const u = (unit||'').toString().trim().toLowerCase();
+  if(!u) return 'm2';
+  if(u==='m2' || u==='m²') return 'm2';
+  if(u==='m1' || u==='m¹') return 'm1';
+  if(u==='m3' || u==='m³') return 'm3';
+  if(u==='kom' || u==='komada' || u==='komad' || u==='pcs') return 'kom';
+  return u;
+}
+function unitLabel(unit){
+  switch(unit){
+    case 'm1': return 'M¹';
+    case 'm2': return 'M²';
+    case 'm3': return 'M³';
+    case 'kom': return 'Kom';
+    default: return (unit||'').toUpperCase();
+  }
+}
+function decimalsForUnit(unit){
+  switch(unit){
+    case 'kom': return 0;
+    case 'm3': return 3;
+    default: return 2;
+  }
+}
+function formatQty(value, unit){
+  let num = Number(value);
+  if(!Number.isFinite(num)) num = 0;
+  const dec = decimalsForUnit(unit);
+  const fixed = num.toFixed(dec);
+  return fixed.replace(/^-0+(\.0+)?$/, '0$1');
+}
+function formatQtyWithUnit(value, unit){
+  const label = unitLabel(unit);
+  const qty = formatQty(value, unit);
+  return label ? `${qty} ${label}` : qty;
+}
+function normalizeRequestNumber(v){
+  const trimmed = (v||'').toString().trim();
+  if(!trimmed) return '';
+  const upper = trimmed.toUpperCase();
+  const cleaned = upper.replace(/^0+(?=\d)/,'');
+  return cleaned || '0';
+}
+function normalizeArticleKey(v){
+  return (v||'').toString().trim().toLowerCase();
+}
+function parseCSVFlexible(text){
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/,1)[0] || '';
+  const delim = first.includes(';') ? ';' : ',';
+  const rows = [];
+  let i=0, field='', row=[], inQuotes=false;
+  while(i<text.length){
+    const ch = text[i];
+    if(ch==='"'){
+      if(inQuotes && text[i+1]==='"'){ field+='"'; i+=2; continue; }
+      inQuotes = !inQuotes; i++; continue;
+    }
+    if(!inQuotes && (ch==='\n' || ch==='\r')){
+      if(ch==='\r' && text[i+1]==='\n') i++;
+      row.push(field); field='';
+      if(row.length>1 || (row.length===1 && row[0]!=='')) rows.push(row);
+      row=[]; i++; continue;
+    }
+    if(!inQuotes && ch===delim){
+      row.push(field); field=''; i++; continue;
+    }
+    field += ch; i++;
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function normalizeHeaderName(h){
+  return (h||'').toString().trim().toLowerCase();
+}
+function pickPlanQuantity(item, unit){
+  const base = toNumber(item && item.kolicina);
+  const m1 = toNumber(item && (item.m1 ?? item.m_1));
+  const m2 = toNumber(item && (item.m2 ?? item.m_2));
+  const m3 = toNumber(item && (item.m3 ?? item.m_3));
+  const kom = toNumber(item && item.kom);
+  switch(unit){
+    case 'm1': return base || m1;
+    case 'm2': return base || m2 || m1;
+    case 'm3': return base || m3;
+    case 'kom': return base || kom;
+    default:
+      if(m2) return m2;
+      if(m1) return m1;
+      if(kom) return kom;
+      if(m3) return m3;
+      return base;
+  }
+}
+async function fetchPlanData(){
+  const empty = { byRequest: new Map(), meta: new Map() };
+  try{
+    const res = await fetch('data/zahtevi.csv', {cache:'no-store'});
+    if(!res.ok){ return empty; }
+    const text = await res.text();
+    const rows = parseCSVFlexible(text.trim());
+    if(!rows.length){ return empty; }
+    const header = rows[0].map(normalizeHeaderName);
+    const idx = (name)=> header.indexOf(normalizeHeaderName(name));
+    const iBroj = idx('broj')>=0 ? idx('broj') : 0;
+    const iFirma = idx('firma');
+    const iAdresa = idx('adresa');
+    const iStavke = (idx('stavke_json')>=0) ? idx('stavke_json') : idx('stavke');
+    const byRequest = new Map();
+    const meta = new Map();
+    for(let i=1;i<rows.length;i++){
+      const cols = rows[i];
+      if(!cols || !cols.length) continue;
+      const broj = (cols[iBroj]||'').trim();
+      if(!broj) continue;
+      const normBroj = normalizeRequestNumber(broj);
+      if(!normBroj) continue;
+      const firma = iFirma>=0 ? (cols[iFirma]||'').trim() : '';
+      const adresa = iAdresa>=0 ? (cols[iAdresa]||'').trim() : '';
+      meta.set(normBroj, { broj, firma, adresa });
+      const rawStavke = iStavke>=0 ? (cols[iStavke]||'').trim() : '';
+      let stavke = [];
+      if(rawStavke){
+        let payload = rawStavke;
+        try{ stavke = JSON.parse(payload); }
+        catch(err){
+          try{ stavke = JSON.parse(payload.replace(/""/g,'"')); }
+          catch(_){ stavke = []; }
+        }
+      }
+      if(!Array.isArray(stavke)) stavke = [];
+      const artMap = byRequest.get(normBroj) || new Map();
+      byRequest.set(normBroj, artMap);
+      for(const s of stavke){
+        if(!s) continue;
+        const rawSifra = s.sifra ?? s.artikal ?? s.naziv ?? '';
+        const sifra = (rawSifra||'').toString().trim();
+        if(!sifra) continue;
+        const artKey = normalizeArticleKey(sifra);
+        if(!artKey) continue;
+        const unit = canonicalUnit(s.jedinica);
+        const qty = pickPlanQuantity(s, unit);
+        const note = (s.napomena || s.napomena_artikla || '').toString().trim();
+        const dimenzije = (s.dimenzije || '').toString().trim();
+        const naziv = (s.naziv || '').toString().trim();
+        let entry = artMap.get(artKey);
+        if(!entry){
+          entry = { sifra, jedinica: unit, plan: 0, notes: new Set(), dimenzije: '', naziv: '' };
+          artMap.set(artKey, entry);
+        }
+        entry.plan += qty;
+        if(!entry.dimenzije && dimenzije) entry.dimenzije = dimenzije;
+        if(!entry.naziv && naziv) entry.naziv = naziv;
+        if(note) entry.notes.add(note);
+      }
+    }
+    return { byRequest, meta };
+  }catch(err){
+    console.warn('Greška pri čitanju planiranih zahteva', err);
+    return empty;
+  }
+}
+function selectProducedByUnit(totals, unit){
+  if(!totals) return 0;
+  if(unit && totals.hasOwnProperty(unit)) return totals[unit] ?? 0;
+  return totals.m2 ?? totals.m1 ?? totals.kom ?? totals.m3 ?? 0;
+}
+function chooseUnitFromProduced(entry){
+  if(!entry || !entry.totals) return 'm2';
+  const totals = entry.totals;
+  const order = ['m2','m1','kom','m3'];
+  for(const u of order){
+    if(Math.abs(totals[u]||0) > 0) return u;
+  }
+  return 'm2';
+}
+function buildNotes(planNotes, prodNotes){
+  const parts = [];
+  if(planNotes && planNotes.length) parts.push('Plan: '+planNotes.join('; '));
+  if(prodNotes && prodNotes.length) parts.push('Proizvodnja: '+prodNotes.join('; '));
+  return parts.join(' / ');
+}
 async function renderPregledCSV(){
-  const tbody = document.querySelector('#tabela tbody');
-  if(!tbody) return;
-  tbody.innerHTML='';
-  const data = await fetchCSVAll();
-  const qZ = document.getElementById('filterZahtev')?.value || '';
-  const qA = document.getElementById('filterArtikal')?.value || '';
-  const qD = document.getElementById('filterDatum')?.value || '';
-  const z = norm(qZ), a = norm(qA), d = (qD||'').trim();
-  data
-    .filter(r => (!z || norm(r.brojZahteva).includes(z))
-              && (!a || norm(r.artikal).includes(a))
-              && (!d || r.datum===d))
-    .forEach(r=>{
-      const tr = document.createElement('tr');
-      tr.innerHTML = ''
-        + '<td>'+(r.datum||'')+'</td>'
-        + '<td>'+(r.brojZahteva||'')+'</td>'
-        + '<td>'+(r.artikal||'')+'</td>'
-        + '<td>'+(fmt(r.m1)||'')+'</td>'
-        + '<td>'+(fmt(r.m2)||'')+'</td>'
-        + '<td>'+(fmt(r.m3)||'')+'</td>'
-        + '<td>'+(fmt(r.kom)||'')+'</td>'
-        + '<td>'+(r.napomena||'')+'</td>'
-        + '<td class="right"><button class="secondary otvori" type="button" style="width:auto">Otvori</button> <button class="ok edit-btn" type="button" style="width:auto;margin-left:6px">Izmeni</button></td>';
-      tbody.appendChild(tr);
+  const rawTbody = document.querySelector('#tabela tbody');
+  const summaryTbody = document.querySelector('#planTabela tbody');
+  if(rawTbody) rawTbody.innerHTML='';
+  if(summaryTbody) summaryTbody.innerHTML='';
+  try{
+    const [data, planData] = await Promise.all([fetchCSVAll(), fetchPlanData()]);
+    const qZ = document.getElementById('filterZahtev')?.value || '';
+    const qA = document.getElementById('filterArtikal')?.value || '';
+    const qD = document.getElementById('filterDatum')?.value || '';
+    const z = norm(qZ), a = norm(qA), d = (qD||'').trim();
+    const filterNumber = normalizeRequestNumber(qZ);
+    const hasZFilter = !!qZ.trim();
+
+    const producedMap = new Map();
+    data.forEach(row => {
+      const brojNorm = normalizeRequestNumber(row.brojZahteva);
+      const artKey = normalizeArticleKey(row.artikal);
+      if(!brojNorm || !artKey) return;
+      const key = brojNorm + KEY_SEP + artKey;
+      let entry = producedMap.get(key);
+      if(!entry){
+        entry = {
+          key,
+          brojNorm,
+          brojDisplay: row.brojZahteva || brojNorm,
+          artikal: row.artikal || artKey,
+          totals: {m1:0, m2:0, m3:0, kom:0},
+          details: [],
+          notes: new Set()
+        };
+        producedMap.set(key, entry);
+      }
+      const m1 = toNumber(row.m1);
+      const m2 = toNumber(row.m2);
+      const m3 = toNumber(row.m3);
+      const kom = toNumber(row.kom);
+      entry.totals.m1 += m1;
+      entry.totals.m2 += m2;
+      entry.totals.m3 += m3;
+      entry.totals.kom += kom;
+      entry.details.push({
+        datum: row.datum || '',
+        broj: row.brojZahteva || '',
+        artikal: row.artikal || '',
+        m1, m2, m3, kom,
+        napomena: row.napomena || ''
+      });
+      if(row.napomena && row.napomena.trim()) entry.notes.add(row.napomena.trim());
+      if(row.brojZahteva && row.brojZahteva.length > entry.brojDisplay.length) entry.brojDisplay = row.brojZahteva;
+      if(row.artikal && row.artikal.length > entry.artikal.length) entry.artikal = row.artikal;
     });
+
+    const planByRequest = planData.byRequest || new Map();
+    const meta = planData.meta || new Map();
+    const summaryRows = [];
+    const summaryMap = new Map();
+    const keys = new Set();
+    producedMap.forEach((_, key)=> keys.add(key));
+    planByRequest.forEach((artMap, brojNorm)=>{
+      artMap.forEach((_, artKey)=>{ keys.add(brojNorm + KEY_SEP + artKey); });
+    });
+
+    keys.forEach(key => {
+      const [brojNorm, artKey] = key.split(KEY_SEP);
+      const planEntry = planByRequest.get(brojNorm)?.get(artKey) || null;
+      const producedEntry = producedMap.get(key) || null;
+      const brojDisplay = meta.get(brojNorm)?.broj || producedEntry?.brojDisplay || (planEntry ? meta.get(brojNorm)?.broj : brojNorm);
+      const artDisplay = planEntry?.sifra || producedEntry?.artikal || artKey;
+      const opisParts = [];
+      if(planEntry?.dimenzije) opisParts.push(planEntry.dimenzije);
+      if(planEntry?.naziv && planEntry.naziv !== planEntry.sifra) opisParts.push(planEntry.naziv);
+      const opis = opisParts.join(' • ');
+      const unit = planEntry ? planEntry.jedinica : chooseUnitFromProduced(producedEntry);
+      const planQty = planEntry ? planEntry.plan : 0;
+      const producedQty = producedEntry ? selectProducedByUnit(producedEntry.totals, unit) : 0;
+      const planNotes = planEntry ? Array.from(planEntry.notes || []) : [];
+      const prodNotes = producedEntry ? Array.from(producedEntry.notes || []) : [];
+      const difference = planQty - producedQty;
+      const details = producedEntry ? producedEntry.details.slice().sort((a,b)=>{
+        const dateCmp = (a.datum||'').localeCompare(b.datum||'');
+        if(dateCmp!==0) return dateCmp;
+        return (a.artikal||'').localeCompare(b.artikal||'');
+      }) : [];
+      const row = {
+        key,
+        broj: brojDisplay || brojNorm,
+        brojNorm,
+        artikal: artDisplay,
+        artikalKey: artKey,
+        opis,
+        unit,
+        planQty,
+        producedQty,
+        difference,
+        napomena: buildNotes(planNotes, prodNotes),
+        planNotes,
+        prodNotes,
+        details,
+        hasPlan: !!planEntry,
+        hasProduction: !!producedEntry
+      };
+      summaryRows.push(row);
+      summaryMap.set(key, row);
+    });
+
+    let displayRows = summaryRows.filter(row => {
+      const brojMatch = !z || norm(row.broj).includes(z) || (!!filterNumber && row.brojNorm.includes(filterNumber));
+      if(!brojMatch) return false;
+      const artMatch = !a || norm(`${row.artikal||''} ${row.opis||''}`).includes(a);
+      if(!artMatch) return false;
+      const dateMatch = !d || (row.details && row.details.some(det => det.datum === d)) || (d && !row.details.length && hasZFilter && brojMatch);
+      return dateMatch;
+    });
+
+    displayRows.sort((a,b)=>{
+      const cmpBroj = a.brojNorm.localeCompare(b.brojNorm, undefined, {numeric:true, sensitivity:'base'});
+      if(cmpBroj!==0) return cmpBroj;
+      return a.artikal.localeCompare(b.artikal, undefined, {sensitivity:'base'});
+    });
+
+    if(summaryTbody){
+      if(!displayRows.length){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.className = 'muted';
+        td.textContent = 'Nema podataka za prikaz.';
+        tr.appendChild(td);
+        summaryTbody.appendChild(tr);
+      }else{
+        displayRows.forEach(row => {
+          const tr = document.createElement('tr');
+
+          const tdBroj = document.createElement('td');
+          tdBroj.textContent = row.broj || '';
+          tr.appendChild(tdBroj);
+
+          const tdArt = document.createElement('td');
+          const artMain = document.createElement('div');
+          const artStrong = document.createElement('b');
+          artStrong.textContent = row.artikal || '';
+          artMain.appendChild(artStrong);
+          tdArt.appendChild(artMain);
+          if(row.opis){
+            const sub = document.createElement('div');
+            sub.className = 'muted';
+            sub.textContent = row.opis;
+            tdArt.appendChild(sub);
+          }
+          tr.appendChild(tdArt);
+
+          const tdPlan = document.createElement('td');
+          tdPlan.className = 'right';
+          tdPlan.textContent = formatQtyWithUnit(row.planQty, row.unit);
+          tr.appendChild(tdPlan);
+
+          const tdProd = document.createElement('td');
+          tdProd.className = 'right';
+          tdProd.textContent = formatQtyWithUnit(row.producedQty, row.unit);
+          tr.appendChild(tdProd);
+
+          const tdDiff = document.createElement('td');
+          tdDiff.className = 'right';
+          tdDiff.textContent = formatQtyWithUnit(row.difference, row.unit);
+          if(row.difference > 0){ tdDiff.style.color = 'var(--warn)'; }
+          else if(row.difference < 0){ tdDiff.style.color = 'var(--ok)'; }
+          tr.appendChild(tdDiff);
+
+          const tdNote = document.createElement('td');
+          tdNote.textContent = row.napomena || '—';
+          tr.appendChild(tdNote);
+
+          const tdActions = document.createElement('td');
+          tdActions.className = 'right nowrap';
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'secondary otvori';
+          btn.style.width = 'auto';
+          btn.textContent = 'Detalji';
+          btn.dataset.summaryKey = row.key;
+          tdActions.appendChild(btn);
+          tr.appendChild(tdActions);
+
+          summaryTbody.appendChild(tr);
+        });
+      }
+    }
+
+    if(rawTbody){
+      const filteredRaw = data.filter(r => (!z || norm(r.brojZahteva).includes(z)) && (!a || norm(r.artikal).includes(a)) && (!d || r.datum===d));
+      if(!filteredRaw.length){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 9;
+        td.className = 'muted';
+        td.textContent = 'Nema zapisa za odabrani filter.';
+        tr.appendChild(td);
+        rawTbody.appendChild(tr);
+      }else{
+        filteredRaw.forEach(r => {
+          const tr = document.createElement('tr');
+          const cells = [
+            r.datum||'',
+            r.brojZahteva||'',
+            r.artikal||'',
+            fmt(r.m1)||'',
+            fmt(r.m2)||'',
+            fmt(r.m3)||'',
+            fmt(r.kom)||'',
+            r.napomena||''
+          ];
+          cells.forEach((val, idx) => {
+            const td = document.createElement('td');
+            if(idx>=3 && idx<=6) td.className = 'right';
+            td.textContent = val;
+            tr.appendChild(td);
+          });
+          const act = document.createElement('td');
+          act.className = 'right nowrap';
+          const edit = document.createElement('button');
+          edit.className = 'ok edit-btn';
+          edit.type = 'button';
+          edit.style.width = 'auto';
+          edit.textContent = 'Izmeni';
+          act.appendChild(edit);
+          tr.appendChild(act);
+          rawTbody.appendChild(tr);
+        });
+      }
+    }
+
+    window.__PLAN_REAL_SUMMARY = summaryRows;
+    window.__PLAN_REAL_MAP = summaryMap;
+    return displayRows;
+  }catch(err){
+    console.error('Neuspešno generisanje pregleda', err);
+    if(summaryTbody){
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.className = 'muted';
+      td.textContent = 'Greška pri učitavanju pregleda.';
+      tr.appendChild(td);
+      summaryTbody.appendChild(tr);
+    }
+    return [];
+  }
+}
+function onPregledRendered(rows, opts={}){
+  try{
+    const list = Array.isArray(rows) ? rows : [];
+    const info = document.getElementById('planSummaryInfo');
+    if(info){
+      info.textContent = list.length ? `Prikazano ${list.length} stavki` : 'Nema podataka za prikaz';
+    }
+    if(opts.focus){
+      const card = document.getElementById('planSummaryCard');
+      if(card){
+        card.classList.remove('flash-card');
+        void card.offsetWidth;
+        card.classList.add('flash-card');
+        card.scrollIntoView({behavior:'smooth', block:'start'});
+        setTimeout(()=>card.classList.remove('flash-card'), 1200);
+      }
+    }
+  }catch(err){
+    console.warn('Pregled UI update problem', err);
+  }
+}
+function refreshPlanPregled(opts={}){
+  const result = renderPregledCSV();
+  if(result && typeof result.then === 'function'){
+    return result.then(rows => { onPregledRendered(rows, opts); return rows; });
+  }
+  onPregledRendered(result, opts);
+  return Promise.resolve(result);
 }
 ['input','change'].forEach(evt=>{
-  document.getElementById('filterZahtev')?.addEventListener(evt, renderPregledCSV);
-  document.getElementById('filterArtikal')?.addEventListener(evt, renderPregledCSV);
-  document.getElementById('filterDatum')?.addEventListener(evt, renderPregledCSV);
+  const handler = ()=>{ refreshPlanPregled(); };
+  document.getElementById('filterZahtev')?.addEventListener(evt, handler);
+  document.getElementById('filterArtikal')?.addEventListener(evt, handler);
+  document.getElementById('filterDatum')?.addEventListener(evt, handler);
 });
 
-// Open modal with full report
-document.addEventListener('click', async e => {
-  const btn = e.target.closest && e.target.closest('button.otvori');
-  if(!btn) return;
-  const tr = btn.closest('tr'); if(!tr) return;
-  const tds = tr.children;
-  const datum = tds[0] ? tds[0].textContent.trim() : '';
-  const broj = tds[1] ? tds[1].textContent.trim() : '';
-  const data = await fetchCSVAll();
-  const list = data.filter(r => r.datum===datum && r.brojZahteva===broj);
+function openSummaryDetail(summary){
+  if(!summary){
+    alert('Detalji nisu dostupni.');
+    return;
+  }
+  const chip = document.getElementById('detChip');
+  if(chip) chip.textContent = `${summary.broj||''} • ${summary.artikal||''}`;
+  const planEl = document.getElementById('detPlan');
+  if(planEl) planEl.textContent = formatQtyWithUnit(summary.planQty, summary.unit);
+  const planLbl = document.getElementById('detPlanLabel');
+  if(planLbl) planLbl.textContent = summary.hasPlan ? 'Planirane količine' : 'Plan nije definisan';
+  const prodEl = document.getElementById('detProizvedeno');
+  if(prodEl) prodEl.textContent = formatQtyWithUnit(summary.producedQty, summary.unit);
+  const prodLbl = document.getElementById('detProizvedenoLabel');
+  if(prodLbl) prodLbl.textContent = summary.hasProduction ? 'Zabeležena proizvodnja' : 'Još nema proizvodnje';
+  const diffEl = document.getElementById('detRazlika');
+  if(diffEl){
+    diffEl.textContent = formatQtyWithUnit(summary.difference, summary.unit);
+    diffEl.style.color = summary.difference > 0 ? 'var(--warn)' : (summary.difference < 0 ? 'var(--ok)' : 'var(--ink)');
+  }
+  const diffLbl = document.getElementById('detRazlikaLabel');
+  if(diffLbl) diffLbl.textContent = 'Plan – proizvodnja';
+  const nap = document.getElementById('detNapomena');
+  if(nap) nap.textContent = summary.napomena || 'Bez dodatnih napomena.';
   const tb = document.querySelector('#detPregled tbody');
   if(tb){
-    tb.innerHTML = '';
-    list.forEach(r=>{
-      const row = document.createElement('tr');
-      row.innerHTML = ''
-        + '<td>'+(r.artikal||'')+'</td>'
-        + '<td class="right">'+(fmt(r.m1)||'')+'</td>'
-        + '<td class="right">'+(fmt(r.m2)||'')+'</td>'
-        + '<td class="right">'+(fmt(r.m3)||'')+'</td>'
-        + '<td class="right">'+(fmt(r.kom)||'')+'</td>'
-        + '<td>'+(r.napomena||'')+'</td>';
-      tb.appendChild(row);
-    });
+    tb.innerHTML='';
+    if(summary.details && summary.details.length){
+      summary.details.forEach(det => {
+        const tr = document.createElement('tr');
+        const values = [
+          det.datum || '',
+          det.broj || summary.broj || '',
+          det.artikal || summary.artikal || '',
+          formatQty(det.m1, 'm1'),
+          formatQty(det.m2, 'm2'),
+          formatQty(det.m3, 'm3'),
+          formatQty(det.kom, 'kom'),
+          det.napomena || ''
+        ];
+        values.forEach((val, idx)=>{
+          const td = document.createElement('td');
+          if(idx>=3 && idx<=6) td.className = 'right';
+          td.textContent = val;
+          tr.appendChild(td);
+        });
+        const act = document.createElement('td');
+        act.className = 'right nowrap';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'ok edit-btn';
+        edit.style.width = 'auto';
+        edit.textContent = 'Izmeni';
+        act.appendChild(edit);
+        tr.appendChild(act);
+        tb.appendChild(tr);
+      });
+    }else{
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 9;
+      td.className = 'muted';
+      td.textContent = 'Nema evidentiranih proizvodnih zapisa.';
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    }
   }
-  const dEl = document.getElementById('detDatum'); if(dEl) dEl.textContent = datum;
-  const bEl = document.getElementById('detBroj'); if(bEl) bEl.textContent = broj;
-  const back = document.getElementById('modalBackPregled'); if(back) back.style.display='flex';
+  const back = document.getElementById('modalBackPregled');
+  if(back) back.style.display='flex';
+}
+
+// Open modal with aggregated details
+document.addEventListener('click', e => {
+  const btn = e.target.closest && e.target.closest('button.otvori');
+  if(!btn) return;
+  const key = btn.dataset.summaryKey;
+  if(key && window.__PLAN_REAL_MAP){
+    const summary = window.__PLAN_REAL_MAP.get(key);
+    openSummaryDetail(summary);
+  }
 });
 document.getElementById('closePregled')?.addEventListener('click', ()=>{
   const back = document.getElementById('modalBackPregled'); if(back) back.style.display='none';
@@ -1216,8 +1792,13 @@ document.getElementById('modalBackPregled')?.addEventListener('click', e=>{
       }
       // Full refresh if available
       try{
-        const ref = (typeof renderPregledCSV==='function') ? renderPregledCSV() : null;
-        if (ref && typeof ref.then === 'function') await ref;
+        if(typeof refreshPlanPregled === 'function'){
+          const focus = !document.getElementById('sekcija-pregled')?.classList.contains('hidden');
+          await refreshPlanPregled({focus});
+        }else if(typeof renderPregledCSV === 'function'){
+          const ref = renderPregledCSV();
+          if (ref && typeof ref.then === 'function') await ref;
+        }
       }catch(_){}
     });
   }
