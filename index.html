@@ -384,6 +384,7 @@
 
     const LS_ORDERS = 'proizvodnja_nalozi_v1';
     const LS_LASTNO = 'proizvodnja_lastno_v1';
+    const SERVER_SAVE_URL = 'save_nalog.php';
 
     const q = sel => document.querySelector(sel);
 
@@ -397,6 +398,60 @@
     function pad(n){return String(n).padStart(4,'0');}
     function getOrders(){ try{return JSON.parse(localStorage.getItem(LS_ORDERS))||[]}catch{return[]} }
     function setOrders(arr){ localStorage.setItem(LS_ORDERS, JSON.stringify(arr)); }
+
+    function buildServerPayload(nalog){
+      const body = new URLSearchParams();
+      body.append('broj',   String(nalog && nalog.broj || ''));
+      body.append('firma',  String(nalog && nalog.firma || ''));
+      body.append('adresa', String(nalog && nalog.adresa || ''));
+      body.append('vreme',  String(nalog && nalog.vreme || new Date().toISOString()));
+      body.append('stavke', JSON.stringify((nalog && nalog.stavke) || []));
+      return body;
+    }
+
+    function syncOrderToServer(nalog, opts={}){
+      if(!nalog || !nalog.broj){ return Promise.resolve(); }
+      const payload = buildServerPayload(nalog);
+      return fetch(SERVER_SAVE_URL, { method:'POST', body: payload })
+        .then(async res => {
+          const text = await res.text();
+          if(!res.ok || !/^OK/.test((text||'').trim())){
+            const err = new Error(text || 'save_nalog.php error');
+            err.responseText = text;
+            throw err;
+          }
+          return text;
+        })
+        .catch(err => {
+          console.warn('Neuspelo slanje naloga na server', err);
+          if(!opts.silent && typeof notify === 'function'){
+            notify('Sačuvano lokalno (server nije dostupan)', true);
+          }
+          throw err;
+        });
+    }
+
+    let syncAllInFlight = null;
+    function syncLocalOrdersWithServer(){
+      if(syncAllInFlight){ return syncAllInFlight; }
+      const orders = getOrders();
+      syncAllInFlight = (async()=>{
+        let hadError = false;
+        for(const nalog of orders){
+          try{
+            await syncOrderToServer(nalog, {silent:true});
+          }catch(err){
+            console.warn('Sinhronizacija naloga nije uspela', nalog && nalog.broj, err);
+            hadError = true;
+          }
+        }
+        if(hadError){ throw new Error('sync failed'); }
+      })();
+      syncAllInFlight.finally(()=>{ syncAllInFlight = null; });
+      return syncAllInFlight;
+    }
+
+    window.__orderServerSync = true;
     function getLastNo(){ return Number(localStorage.getItem(LS_LASTNO)||'0'); }
     function setLastNo(n){
       localStorage.setItem(LS_LASTNO, String(n));
@@ -543,8 +598,14 @@
       orders.push(nalog);
       setOrders(orders);
       setLastNo(next);
-      STAVKE=[]; renderStavke(); updateStats(); renderPregled();
+      STAVKE = [];
+      renderStavke();
+      updateStats();
       notify('Nalog sačuvan: #'+broj);
+
+      syncOrderToServer(nalog)
+        .then(()=>{ setTimeout(()=>renderPregled(), 300); })
+        .catch(()=>{ renderPregled(); });
       // Reset forme posle snimanja
       q('#firma').value = '';
       q('#adresa').value = '';
@@ -552,8 +613,6 @@
       q('#artikalSelect').value = '';
       q('#kolicina').value = 1;
       q('#napomena').value = '';
-      STAVKE = [];
-      renderStavke();
 
     }
 
@@ -1416,6 +1475,7 @@ function saveEditedNalog(nalog){
       notify('Izmene sačuvane');
       renderPregled();
       updateStats();
+      try{ await syncLocalOrdersWithServer(); }catch(_){ }
     };
 
     try{
@@ -1478,6 +1538,7 @@ window.APP_PAGES = [
       const href = (typeof it === 'string') ? it : (it.href || '');
       if(!href || seen.has(href)) return;
       seen.add(href);
+  if(window.__orderServerSync){ return; }
       const label = (typeof it === 'string') ? niceLabel(href) : (it.label || niceLabel(href));
       const a = document.createElement('a');
       a.href = href;
