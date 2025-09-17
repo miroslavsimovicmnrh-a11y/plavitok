@@ -781,14 +781,27 @@ async function renderPregled(){
 
   async function fetchOrders(){
     const urls = ['data/zahtevi.csv','/data/zahtevi.csv'];
+    let lastError = null;
     for(const url of urls){
+      const bustUrl = url + (url.includes('?')?'&':'?') + 'ts=' + Date.now();
       try{
-        const res = await fetch(url + (url.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'});
+        const res = await fetch(bustUrl, {cache:'no-store'});
         if(!res.ok) throw new Error('HTTP '+res.status);
         const text = await res.text();
         return parseOrdersFromText(text);
-      }catch(_){ }
+      }catch(err){
+        lastError = err;
+        try{
+          const res = await fetch(url, {cache:'no-store'});
+          if(!res.ok) throw new Error('HTTP '+res.status);
+          const text = await res.text();
+          return parseOrdersFromText(text);
+        }catch(innerErr){
+          lastError = innerErr;
+        }
+      }
     }
+    if(lastError) console.warn('Upozorenje: data/zahtevi.csv nije dostupna.', lastError);
     try{
       const local = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]');
       return Array.isArray(local) ? local : [];
@@ -799,12 +812,21 @@ async function renderPregled(){
     const urls = ['data/proizvodnja.csv','/data/proizvodnja.csv'];
     let lastError = null;
     for(const url of urls){
+      const bustUrl = url + (url.includes('?')?'&':'?') + 'ts=' + Date.now();
       try{
-        const res = await fetch(url + (url.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'});
+        const res = await fetch(bustUrl, {cache:'no-store'});
         if(!res.ok) throw new Error('HTTP '+res.status);
         const text = await res.text();
         return parseProduction(text);
-      }catch(err){ lastError = err; }
+      }catch(err){
+        lastError = err;
+        try{
+          const res = await fetch(url, {cache:'no-store'});
+          if(!res.ok) throw new Error('HTTP '+res.status);
+          const text = await res.text();
+          return parseProduction(text);
+        }catch(innerErr){ lastError = innerErr; }
+      }
     }
     console.warn('Upozorenje: data/proizvodnja.csv nije dostupna.', lastError || '');
     return new Map();
