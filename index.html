@@ -373,6 +373,8 @@
     const EXCEL_FILE = 'artikli.xlsx';
     let ARTIKLI = [];
     let STAVKE = [];
+    let ordersReady = false;
+    let saveBtn = null;
 
     const LS_ORDERS = 'proizvodnja_nalozi_v1';
     const LS_LASTNO = 'proizvodnja_lastno_v1';
@@ -393,6 +395,32 @@
     function setLastNo(n){
       localStorage.setItem(LS_LASTNO, String(n));
       q('#navLastNo').textContent = pad(n);
+    }
+    function toOrderNumber(value){
+      if(value===undefined || value===null) return null;
+      const str = String(value).trim();
+      if(!str) return null;
+      if(/^\d+$/.test(str)){
+        const num = Number(str);
+        return Number.isFinite(num) ? num : null;
+      }
+      const match = str.match(/\d+/);
+      if(!match) return null;
+      const num = Number(match[0]);
+      return Number.isFinite(num) ? num : null;
+    }
+    function highestOrderNo(...lists){
+      let max = 0;
+      for(const list of lists){
+        if(!Array.isArray(list)) continue;
+        for(const item of list){
+          if(!item) continue;
+          const raw = (typeof item==='object' && item!==null) ? item.broj : item;
+          const num = toOrderNumber(raw);
+          if(num!==null && num>max) max = num;
+        }
+      }
+      return max;
     }
     function updateStats(){
       const orders = getOrders();
@@ -509,13 +537,24 @@
     });
 
     // Save
-    q('#sacuvajNalog').addEventListener('click', saveOrder);
+    saveBtn = q('#sacuvajNalog');
+    if(saveBtn){
+      saveBtn.addEventListener('click', saveOrder);
+      saveBtn.disabled = true;
+    }
     function saveOrder(){
+      if(!ordersReady){
+        notify('Sačekajte da se učitaju postojeći zahtevi', true);
+        return;
+      }
       const firma = q('#firma').value.trim();
       const adresa = q('#adresa').value.trim();
       if(!firma || !adresa){ notify('Unesi firmu i adresu projekta', true); return; }
       if(STAVKE.length===0){ notify('Dodaj bar jednu stavku', true); return; }
-      const next = getLastNo()+1;
+      const orders = getOrders();
+      const cacheOrders = Array.isArray(window._ORDERS_CACHE) ? window._ORDERS_CACHE : [];
+      const highestExisting = Math.max(getLastNo(), highestOrderNo(orders, cacheOrders));
+      const next = highestExisting + 1;
       const broj = pad(next);
       const nalog = {
         broj, firma, adresa,
@@ -531,9 +570,11 @@
           napomena:s.napomena||''
         }))
       };
-      const orders = getOrders();
       orders.push(nalog);
       setOrders(orders);
+      if(Array.isArray(window._ORDERS_CACHE)){
+        window._ORDERS_CACHE.push(nalog);
+      }
       setLastNo(next);
       STAVKE=[]; renderStavke(); updateStats(); renderPregled();
       notify('Nalog sačuvan: #'+broj);
@@ -572,7 +613,11 @@
 let _renderPregledSeq = 0;
 async function renderPregled(){
   const tb = document.querySelector('#pregledTable tbody');
-  if(!tb) return;
+  if(!tb){
+    ordersReady = true;
+    if(saveBtn) saveBtn.disabled = false;
+    return;
+  }
   const seq = ++_renderPregledSeq;
   tb.innerHTML='';
   const filterEl = document.querySelector('#filterInput');
@@ -832,12 +877,36 @@ async function renderPregled(){
     return new Map();
   }
 
-  const [orders, productionTotals] = await Promise.all([fetchOrders(), fetchProduction()]);
+  const [fetchedOrders, productionTotals] = await Promise.all([fetchOrders(), fetchProduction()]);
   if(seq !== _renderPregledSeq) return;
 
-  window._ORDERS_CACHE = Array.isArray(orders) ? orders.slice() : [];
+  const localOrders = getOrders();
+  const mergedMap = new Map();
+  if(Array.isArray(fetchedOrders)){
+    fetchedOrders.forEach(o=>{
+      if(o && o.broj!=null){
+        mergedMap.set(String(o.broj), o);
+      }
+    });
+  }
+  if(Array.isArray(localOrders)){
+    localOrders.forEach(o=>{
+      if(o && o.broj!=null){
+        mergedMap.set(String(o.broj), o);
+      }
+    });
+  }
+  const mergedOrders = Array.from(mergedMap.values());
 
-  const filtered = (orders||[]).filter(n => {
+  window._ORDERS_CACHE = mergedOrders.slice();
+  try{ setOrders(mergedOrders); }catch(_){ }
+  try{ updateStats(); }catch(_){ }
+  const highestExisting = Math.max(getLastNo(), highestOrderNo(mergedOrders));
+  setLastNo(highestExisting);
+  ordersReady = true;
+  if(saveBtn) saveBtn.disabled = false;
+
+  const filtered = mergedOrders.filter(n => {
     const hay = [n.broj, n.firma, n.adresa].map(v=> (v||'').toString().toLowerCase()).join(' ');
     return !filter || hay.includes(filter);
   });
