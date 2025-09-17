@@ -127,6 +127,10 @@
     .right{text-align:right}
     .nowrap{white-space:nowrap}
     .table-scroll{overflow-x:auto}
+    .subtabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .subtabs .tab{padding:8px 12px;font-size:12px}
+    .diff-positive{color:var(--warn);font-weight:700}
+    .diff-negative{color:var(--ok);font-weight:700}
 
     /* STATS */
     .stat{ background: var(--glass-strong); border:1px solid var(--line); border-radius:16px; padding:14px; }
@@ -334,7 +338,11 @@
 </div><!-- end sekcija-unos -->
 </div>
 <div class="hidden" id="sekcija-pregled" style="margin-top:16px;">
-<div class="card" style="margin-top:20px;">
+<div class="subtabs" id="pregledTabs" style="margin-top:20px;">
+  <button class="tab tab-active" id="subTabPregled" type="button">📚 Sačuvani izveštaji</button>
+  <button class="tab" id="subTabPlan" type="button">📈 Plan vs. proizvedeno</button>
+</div>
+<div class="card glow" id="sekcija-pregled-list" style="margin-top:20px;">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
 <h2 style="margin:0;">Sačuvani izveštaji</h2>
 
@@ -357,6 +365,37 @@
 </table>
 </div>
 </div>
+<div class="card glow hidden" id="sekcija-planrealizacija" style="margin-top:20px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <h2 style="margin:0;">Plan vs. proizvedeno</h2>
+    <button class="secondary" id="refreshPlanData" type="button" style="width:auto">Osveži plan</button>
+  </div>
+  <div class="row" style="gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+    <div style="flex:1; min-width:180px;">
+      <label for="planFilterZahtev">Broj zahteva</label>
+      <input id="planFilterZahtev" placeholder="npr. 0001" type="search"/>
+    </div>
+    <div style="flex:1; min-width:180px;">
+      <label for="planFilterArtikal">Artikal</label>
+      <input id="planFilterArtikal" placeholder="Šifra artikla" type="search"/>
+    </div>
+  </div>
+  <div class="table-scroll">
+    <table id="planRealizacija">
+      <thead>
+        <tr>
+          <th>Broj zahteva</th>
+          <th>Artikal</th>
+          <th>Jedinica</th>
+          <th class="right">Planirano</th>
+          <th class="right">Proizvedeno</th>
+          <th class="right">Razlika</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
 </div><!-- end sekcija-pregled -->
 <!-- DETALJNI PRIKAZ IZVEŠTAJA -->
 <div class="modal-back" id="modalBackPregled" style="display:none">
@@ -368,6 +407,16 @@
       </div>
       <button class="secondary" id="closePregled" style="width:auto">Zatvori</button>
     </div>
+    <div class="muted" style="margin-top:12px;">Plan i realizacija</div>
+    <div class="table-scroll" style="margin-top:8px">
+      <table id="detPlanReal">
+        <thead>
+          <tr><th>Artikal</th><th class="nowrap">Jedinica</th><th class="right">Planirano</th><th class="right">Proizvedeno</th><th class="right">Razlika</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="muted" style="margin-top:12px;">Zapisi iz izveštaja</div>
     <div class="table-scroll" style="margin-top:8px">
       <table id="detPregled">
         <thead>
@@ -903,7 +952,10 @@ document.addEventListener("DOMContentLoaded", function(){
   sink.__refreshPregledAttached = true;
   sink.addEventListener('load', async () => {
     try{
-      if(typeof window.renderPregled === 'function'){
+      if(typeof window.refreshPregledView === 'function'){
+        const r = window.refreshPregledView();
+        if(r && typeof r.then === 'function') await r;
+      }else if(typeof window.renderPregled === 'function'){
         const r = window.renderPregled();
         if(r && typeof r.then === 'function') await r;
       }else if(typeof window.renderPregledCSV === 'function'){
@@ -921,21 +973,49 @@ document.addEventListener("DOMContentLoaded", function(){
 
 
 <script>
+let currentPregledView = 'list';
 (function(){
   const q = s => document.querySelector(s);
+  function setPregledView(view){
+    currentPregledView = view === 'plan' ? 'plan' : 'list';
+    const listCard = q('#sekcija-pregled-list');
+    const planCard = q('#sekcija-planrealizacija');
+    const btnList = q('#subTabPregled');
+    const btnPlan = q('#subTabPlan');
+    if(currentPregledView === 'plan'){
+      listCard?.classList.add('hidden');
+      planCard?.classList.remove('hidden');
+      btnList?.classList.remove('tab-active');
+      btnPlan?.classList.add('tab-active');
+      renderPlanVsProizvodnja();
+    }else{
+      listCard?.classList.remove('hidden');
+      planCard?.classList.add('hidden');
+      btnList?.classList.add('tab-active');
+      btnPlan?.classList.remove('tab-active');
+      renderPregledCSV();
+    }
+    window.__currentPregledView = currentPregledView;
+  }
   function setTab(which){
-  const actions = document.getElementById("unosActions");
+    const actions = document.getElementById("unosActions");
     const header = document.getElementById("unosHeader");
-    q('#sekcija-unos')?.classList.toggle('hidden', which!=='unos'); if(actions) actions.style.display = (which==='unos') ? 'flex' : 'none'; if(header) header.style.display = (which==='unos') ? '' : 'none';
+    q('#sekcija-unos')?.classList.toggle('hidden', which!=='unos');
+    if(actions) actions.style.display = (which==='unos') ? 'flex' : 'none';
+    if(header) header.style.display = (which==='unos') ? '' : 'none';
     q('#sekcija-pregled')?.classList.toggle('hidden', which!=='pregled');
     q('#tabUnos')?.classList.toggle('tab-active', which==='unos');
     q('#tabPregled')?.classList.toggle('tab-active', which==='pregled');
     if(which==='unos'){ loadLastFromCSV(); }
-    if(which==='pregled'){ renderPregledCSV(); }
+    if(which==='pregled'){ setPregledView(currentPregledView); }
   }
   q('#tabUnos')?.addEventListener('click', ()=>setTab('unos'));
   q('#tabPregled')?.addEventListener('click', ()=>setTab('pregled'));
+  q('#subTabPregled')?.addEventListener('click', ()=>setPregledView('list'));
+  q('#subTabPlan')?.addEventListener('click', ()=>setPregledView('plan'));
   window.__setTab = setTab;
+  window.__setPregledView = setPregledView;
+  window.__currentPregledView = currentPregledView;
   setTab('unos');
 })();
 
@@ -967,6 +1047,54 @@ async function loadLastFromCSV(){
 }
 document.addEventListener('DOMContentLoaded', loadLastFromCSV);
 
+function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function hasValue(v){ return !(v === null || v === undefined || (typeof v === 'string' && v.trim() === '')); }
+function toNumber(v){
+  if(v === null || v === undefined) return 0;
+  if(typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  let str = String(v).trim();
+  if(!str) return 0;
+  str = str.replace(/\s+/g,'');
+  const lastComma = str.lastIndexOf(',');
+  const lastDot = str.lastIndexOf('.');
+  if(lastComma > lastDot){
+    str = str.replace(/\./g,'');
+    str = str.replace(',', '.');
+  }else if(lastDot > lastComma){
+    str = str.replace(/,/g,'');
+  }else{
+    str = str.replace(',', '.');
+  }
+  const num = Number(str);
+  return Number.isFinite(num) ? num : 0;
+}
+function normalizeUnit(unit){
+  const u = (unit||'').toString().trim().toLowerCase();
+  if(u==='m¹') return 'm1';
+  if(u==='m²') return 'm2';
+  if(u==='m³') return 'm3';
+  if(u==='kom') return 'kom';
+  if(u==='m1' || u==='m2' || u==='m3') return u;
+  return 'm2';
+}
+function unitLabel(unit){
+  switch(unit){
+    case 'm1': return 'M¹';
+    case 'm2': return 'M²';
+    case 'm3': return 'M³';
+    case 'kom': return 'Kom';
+    default: return (unit||'').toString().toUpperCase();
+  }
+}
+function formatUnitValue(unit, value){
+  if(value === null || value === undefined) return '';
+  const num = Number(value);
+  if(Number.isNaN(num)) return '';
+  const decimals = unit==='m3' ? 3 : (unit==='kom' ? 0 : 2);
+  const fixed = Number.isFinite(num) ? num : 0;
+  const normalized = Math.abs(fixed) < 1e-9 ? 0 : fixed;
+  return normalized.toFixed(decimals);
+}
 async function fetchCSVAll(){
   const res = await fetch('data/proizvodnja.csv', {cache:'no-store'});
   if(!res.ok) return [];
@@ -991,7 +1119,229 @@ async function fetchCSVAll(){
   }
   return rows;
 }
-function norm(s){ return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+const PLAN_BROJ_LABELS = {};
+const PLAN_SIFRA_LABELS = {};
+function parseCSV(text){
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/,1)[0] || '';
+  const delim = first.includes(';') ? ';' : ',';
+  const rows = [];
+  let i=0, field='', row=[], inQuotes=false;
+  while(i<text.length){
+    const ch = text[i];
+    if(ch === '"'){
+      if(inQuotes && text[i+1] === '"'){ field+='"'; i+=2; continue; }
+      inQuotes = !inQuotes; i++; continue;
+    }
+    if(!inQuotes && (ch === '\n' || ch === '\r')){
+      if(ch === '\r' && text[i+1]==='\n') i++;
+      row.push(field); field='';
+      if(row.length>1 || (row.length===1 && row[0]!=='')) rows.push(row);
+      row=[]; i++; continue;
+    }
+    if(!inQuotes && ch === delim){
+      row.push(field); field=''; i++; continue;
+    }
+    field += ch; i++;
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function normalizeHeader(h){
+  return (h||'').toString().trim().toLowerCase();
+}
+async function fetchPlanCSV(force=false){
+  if(!force && fetchPlanCSV._cache) return fetchPlanCSV._cache;
+  for(const k of Object.keys(PLAN_BROJ_LABELS)) delete PLAN_BROJ_LABELS[k];
+  for(const k of Object.keys(PLAN_SIFRA_LABELS)) delete PLAN_SIFRA_LABELS[k];
+  const plan = {};
+  const addStavke = (broj, stavke=[]) => {
+    const brojLabel = (broj||'').toString().trim();
+    if(!brojLabel) return;
+    const brojKey = norm(brojLabel);
+    if(!brojKey) return;
+    if(!plan[brojKey]) plan[brojKey] = {};
+    if(!PLAN_BROJ_LABELS[brojKey]) PLAN_BROJ_LABELS[brojKey] = brojLabel;
+    (stavke||[]).forEach(s => {
+      if(!s) return;
+      const sifraRaw = (s.sifra || s.artikal || s.naziv || '').toString().trim();
+      if(!sifraRaw) return;
+      const sifraKey = norm(sifraRaw);
+      if(!plan[brojKey][sifraKey]){
+        plan[brojKey][sifraKey] = {jedinica:'', m1:0, m2:0, m3:0, kom:0, sifra:sifraRaw};
+      }
+      if(!PLAN_SIFRA_LABELS[sifraKey]) PLAN_SIFRA_LABELS[sifraKey] = sifraRaw;
+      const entry = plan[brojKey][sifraKey];
+      const unit = normalizeUnit(s.jedinica);
+      if(!entry.jedinica) entry.jedinica = unit;
+      const base = hasValue(s.kolicina) ? toNumber(s.kolicina) : null;
+      const m1v = hasValue(s.m1) ? toNumber(s.m1) : 0;
+      const m2v = hasValue(s.m2) ? toNumber(s.m2) : 0;
+      const m3v = hasValue(s.m3) ? toNumber(s.m3) : 0;
+      const komv = hasValue(s.kom) ? toNumber(s.kom) : 0;
+      if(unit==='m1'){
+        entry.m1 += (base ?? m1v);
+        entry.m2 += m2v;
+        entry.m3 += m3v;
+        entry.kom += komv;
+      }else if(unit==='m3'){
+        entry.m3 += (base ?? m3v);
+        entry.m1 += m1v;
+        entry.m2 += m2v;
+        entry.kom += komv;
+      }else if(unit==='kom'){
+        entry.kom += (base ?? komv);
+        entry.m1 += m1v;
+        entry.m2 += m2v;
+        entry.m3 += m3v;
+      }else{
+        entry.m2 += (base ?? m2v);
+        entry.m1 += m1v;
+        entry.m3 += m3v;
+        entry.kom += komv;
+      }
+    });
+  };
+  let text = '';
+  const urls = ['data/zahtevi.csv','/data/zahtevi.csv'];
+  for(const url of urls){
+    if(text) break;
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      if(res.ok){
+        const body = await res.text();
+        if(body && body.trim()) text = body;
+      }
+    }catch(_){ /* ignore */ }
+  }
+  if(text && text.trim()){
+    const rows = parseCSV(text.trim());
+    if(rows.length){
+      const header = rows[0].map(normalizeHeader);
+      const idx = (name)=> header.indexOf(normalizeHeader(name));
+      const iBroj = idx('broj')>=0 ? idx('broj') : 0;
+      const iStavke = idx('stavke_json');
+      const iLegacy = idx('stavke');
+      for(let i=1;i<rows.length;i++){
+        const cols = rows[i];
+        const broj = cols[iBroj] || '';
+        const raw = iStavke>=0 ? cols[iStavke] : (iLegacy>=0 ? cols[iLegacy] : '');
+        let stavke = [];
+        if(raw){
+          try{ stavke = JSON.parse(raw); }catch(_){ stavke = []; }
+        }
+        addStavke(broj, stavke);
+      }
+    }
+  }else{
+    try{
+      const stored = JSON.parse(localStorage.getItem(ZAH_TE_KEY)||'[]');
+      if(Array.isArray(stored)){
+        stored.forEach(order => {
+          if(!order) return;
+          addStavke(order.broj, Array.isArray(order.stavke) ? order.stavke : []);
+        });
+      }
+    }catch(_){ /* ignore */ }
+  }
+  fetchPlanCSV._cache = plan;
+  return plan;
+}
+async function renderPlanVsProizvodnja(){
+  const tbody = document.querySelector('#planRealizacija tbody');
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  const filterBroj = norm(document.getElementById('planFilterZahtev')?.value || '');
+  const filterArt = norm(document.getElementById('planFilterArtikal')?.value || '');
+  const [plan, proizvodnja] = await Promise.all([fetchPlanCSV(), fetchCSVAll()]);
+  const actualMap = {};
+  const actualBrojLabels = {};
+  const actualSifraLabels = {};
+  for(const row of proizvodnja){
+    const brojLabel = (row.brojZahteva||'').toString().trim();
+    const artikalLabel = (row.artikal||'').toString().trim();
+    const brojKey = norm(brojLabel);
+    const sifraKey = norm(artikalLabel);
+    if(!brojKey || !sifraKey) continue;
+    if(!actualMap[brojKey]) actualMap[brojKey] = {};
+    if(!actualMap[brojKey][sifraKey]) actualMap[brojKey][sifraKey] = {m1:0,m2:0,m3:0,kom:0, artikal: artikalLabel};
+    actualMap[brojKey][sifraKey].m1 += toNumber(row.m1);
+    actualMap[brojKey][sifraKey].m2 += toNumber(row.m2);
+    actualMap[brojKey][sifraKey].m3 += toNumber(row.m3);
+    actualMap[brojKey][sifraKey].kom += toNumber(row.kom);
+    actualBrojLabels[brojKey] = brojLabel;
+    actualSifraLabels[sifraKey] = artikalLabel;
+  }
+  const allBrojevi = new Set([...Object.keys(plan||{}), ...Object.keys(actualMap)]);
+  const sortedBrojevi = Array.from(allBrojevi).sort((a,b)=>{
+    const la = PLAN_BROJ_LABELS[a] || actualBrojLabels[a] || a;
+    const lb = PLAN_BROJ_LABELS[b] || actualBrojLabels[b] || b;
+    return la.localeCompare(lb, undefined, {numeric:true, sensitivity:'base'});
+  });
+  const units = ['m1','m2','m3','kom'];
+  for(const brojKey of sortedBrojevi){
+    const brojLabel = PLAN_BROJ_LABELS[brojKey] || actualBrojLabels[brojKey] || brojKey;
+    if(filterBroj && !norm(brojLabel).includes(filterBroj)) continue;
+    const planItems = plan[brojKey] || {};
+    const actualItems = actualMap[brojKey] || {};
+    const allSifre = new Set([...Object.keys(planItems), ...Object.keys(actualItems)]);
+    const sortedSifre = Array.from(allSifre).sort((a,b)=>{
+      const la = PLAN_SIFRA_LABELS[a] || planItems[a]?.sifra || actualItems[a]?.artikal || actualSifraLabels[a] || a;
+      const lb = PLAN_SIFRA_LABELS[b] || planItems[b]?.sifra || actualItems[b]?.artikal || actualSifraLabels[b] || b;
+      return la.localeCompare(lb, undefined, {numeric:true, sensitivity:'base'});
+    });
+    for(const sifraKey of sortedSifre){
+      const planEntry = planItems[sifraKey];
+      const actualEntry = actualItems[sifraKey];
+      const label = PLAN_SIFRA_LABELS[sifraKey] || planEntry?.sifra || actualEntry?.artikal || actualSifraLabels[sifraKey] || sifraKey;
+      if(filterArt && !norm(label).includes(filterArt)) continue;
+      let appended = false;
+      for(const unit of units){
+        const planVal = planEntry ? toNumber(planEntry[unit]) : 0;
+        const actualVal = actualEntry ? toNumber(actualEntry[unit]) : 0;
+        if(planVal === 0 && actualVal === 0) continue;
+        const diff = planVal - actualVal;
+        const tr = document.createElement('tr');
+        const planText = planVal !== 0 ? formatUnitValue(unit, planVal) : '—';
+        const actualText = actualVal !== 0 ? formatUnitValue(unit, actualVal) : '—';
+        const diffText = (planVal !== 0 || actualVal !== 0) ? formatUnitValue(unit, diff) : '—';
+        tr.innerHTML = `<td>${brojLabel}</td><td>${label}</td><td class="nowrap">${unitLabel(unit)}</td><td class="right">${planText}</td><td class="right">${actualText}</td><td class="right">${diffText}</td>`;
+        const diffCell = tr.lastElementChild;
+        if(diff > 0) diffCell?.classList.add('diff-positive');
+        else if(diff < 0) diffCell?.classList.add('diff-negative');
+        tbody.appendChild(tr);
+        appended = true;
+      }
+      if(!appended && planEntry){
+        // ensure at least one row if plan exists but all values zero
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${brojLabel}</td><td>${label}</td><td class="nowrap">${unitLabel(planEntry.jedinica||'—')}</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+  }
+  if(!tbody.children.length){
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="6" style="text-align:center; padding:16px 0;">Nema podataka za prikaz</td>';
+    tbody.appendChild(tr);
+  }
+}
+function refreshPregledView(){
+  return (currentPregledView === 'plan') ? renderPlanVsProizvodnja() : renderPregledCSV();
+}
+window.refreshPregledView = refreshPregledView;
+['input','change'].forEach(evt => {
+  document.getElementById('planFilterZahtev')?.addEventListener(evt, () => {
+    if(currentPregledView === 'plan'){ renderPlanVsProizvodnja(); }
+  });
+  document.getElementById('planFilterArtikal')?.addEventListener(evt, () => {
+    if(currentPregledView === 'plan'){ renderPlanVsProizvodnja(); }
+  });
+});
+document.getElementById('refreshPlanData')?.addEventListener('click', async () => {
+  await fetchPlanCSV(true);
+  if(currentPregledView === 'plan'){ renderPlanVsProizvodnja(); }
+});
 function fmt(v){ return (v && !isNaN(v)) ? Number(v).toFixed(2) : v; }
 async function renderPregledCSV(){
   const tbody = document.querySelector('#tabela tbody');
@@ -1035,8 +1385,63 @@ document.addEventListener('click', async e => {
   const tds = tr.children;
   const datum = tds[0] ? tds[0].textContent.trim() : '';
   const broj = tds[1] ? tds[1].textContent.trim() : '';
-  const data = await fetchCSVAll();
+  const [planData, data] = await Promise.all([fetchPlanCSV(), fetchCSVAll()]);
   const list = data.filter(r => r.datum===datum && r.brojZahteva===broj);
+  const brojKey = norm(broj);
+  const planItems = planData[brojKey] || {};
+  const aggregated = {};
+  list.forEach(r => {
+    const artKey = norm(r.artikal);
+    if(!artKey) return;
+    if(!aggregated[artKey]) aggregated[artKey] = {m1:0,m2:0,m3:0,kom:0, artikal:r.artikal};
+    aggregated[artKey].m1 += toNumber(r.m1);
+    aggregated[artKey].m2 += toNumber(r.m2);
+    aggregated[artKey].m3 += toNumber(r.m3);
+    aggregated[artKey].kom += toNumber(r.kom);
+  });
+  const planBody = document.querySelector('#detPlanReal tbody');
+  if(planBody){
+    planBody.innerHTML = '';
+    const units = ['m1','m2','m3','kom'];
+    const allKeys = new Set([...Object.keys(planItems), ...Object.keys(aggregated)]);
+    const sortedKeys = Array.from(allKeys).sort((a,b)=>{
+      const la = PLAN_SIFRA_LABELS[a] || planItems[a]?.sifra || aggregated[a]?.artikal || a;
+      const lb = PLAN_SIFRA_LABELS[b] || planItems[b]?.sifra || aggregated[b]?.artikal || b;
+      return la.localeCompare(lb, undefined, {numeric:true, sensitivity:'base'});
+    });
+    for(const key of sortedKeys){
+      const planEntry = planItems[key];
+      const actualEntry = aggregated[key];
+      const label = PLAN_SIFRA_LABELS[key] || planEntry?.sifra || actualEntry?.artikal || key;
+      let appended = false;
+      for(const unit of units){
+        const planVal = planEntry ? toNumber(planEntry[unit]) : 0;
+        const actualVal = actualEntry ? toNumber(actualEntry[unit]) : 0;
+        if(planVal === 0 && actualVal === 0) continue;
+        const diff = planVal - actualVal;
+        const planText = planVal !== 0 ? formatUnitValue(unit, planVal) : '—';
+        const actualText = actualVal !== 0 ? formatUnitValue(unit, actualVal) : '—';
+        const diffText = (planVal !== 0 || actualVal !== 0) ? formatUnitValue(unit, diff) : '—';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${label}</td><td class="nowrap">${unitLabel(unit)}</td><td class="right">${planText}</td><td class="right">${actualText}</td><td class="right">${diffText}</td>`;
+        const diffCell = tr.lastElementChild;
+        if(diff > 0) diffCell?.classList.add('diff-positive');
+        else if(diff < 0) diffCell?.classList.add('diff-negative');
+        planBody.appendChild(tr);
+        appended = true;
+      }
+      if(!appended && planEntry){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${label}</td><td class="nowrap">${unitLabel(planEntry.jedinica||'—')}</td><td class="right">—</td><td class="right">—</td><td class="right">—</td>`;
+        planBody.appendChild(tr);
+      }
+    }
+    if(!planBody.children.length){
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="5" style="text-align:center; padding:12px 0;">Nema planiranih stavki</td>';
+      planBody.appendChild(tr);
+    }
+  }
   const tb = document.querySelector('#detPregled tbody');
   if(tb){
     tb.innerHTML = '';
