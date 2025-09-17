@@ -373,8 +373,6 @@
     const EXCEL_FILE = 'artikli.xlsx';
     let ARTIKLI = [];
     let STAVKE = [];
-    let ordersReady = false;
-    let saveBtn = null;
 
     const LS_ORDERS = 'proizvodnja_nalozi_v1';
     const LS_LASTNO = 'proizvodnja_lastno_v1';
@@ -395,32 +393,6 @@
     function setLastNo(n){
       localStorage.setItem(LS_LASTNO, String(n));
       q('#navLastNo').textContent = pad(n);
-    }
-    function toOrderNumber(value){
-      if(value===undefined || value===null) return null;
-      const str = String(value).trim();
-      if(!str) return null;
-      if(/^\d+$/.test(str)){
-        const num = Number(str);
-        return Number.isFinite(num) ? num : null;
-      }
-      const match = str.match(/\d+/);
-      if(!match) return null;
-      const num = Number(match[0]);
-      return Number.isFinite(num) ? num : null;
-    }
-    function highestOrderNo(...lists){
-      let max = 0;
-      for(const list of lists){
-        if(!Array.isArray(list)) continue;
-        for(const item of list){
-          if(!item) continue;
-          const raw = (typeof item==='object' && item!==null) ? item.broj : item;
-          const num = toOrderNumber(raw);
-          if(num!==null && num>max) max = num;
-        }
-      }
-      return max;
     }
     function updateStats(){
       const orders = getOrders();
@@ -537,24 +509,13 @@
     });
 
     // Save
-    saveBtn = q('#sacuvajNalog');
-    if(saveBtn){
-      saveBtn.addEventListener('click', saveOrder);
-      saveBtn.disabled = true;
-    }
+    q('#sacuvajNalog').addEventListener('click', saveOrder);
     function saveOrder(){
-      if(!ordersReady){
-        notify('Sačekajte da se učitaju postojeći zahtevi', true);
-        return;
-      }
       const firma = q('#firma').value.trim();
       const adresa = q('#adresa').value.trim();
       if(!firma || !adresa){ notify('Unesi firmu i adresu projekta', true); return; }
       if(STAVKE.length===0){ notify('Dodaj bar jednu stavku', true); return; }
-      const orders = getOrders();
-      const cacheOrders = Array.isArray(window._ORDERS_CACHE) ? window._ORDERS_CACHE : [];
-      const highestExisting = Math.max(getLastNo(), highestOrderNo(orders, cacheOrders));
-      const next = highestExisting + 1;
+      const next = getLastNo()+1;
       const broj = pad(next);
       const nalog = {
         broj, firma, adresa,
@@ -570,11 +531,9 @@
           napomena:s.napomena||''
         }))
       };
+      const orders = getOrders();
       orders.push(nalog);
       setOrders(orders);
-      if(Array.isArray(window._ORDERS_CACHE)){
-        window._ORDERS_CACHE.push(nalog);
-      }
       setLastNo(next);
       STAVKE=[]; renderStavke(); updateStats(); renderPregled();
       notify('Nalog sačuvan: #'+broj);
@@ -609,23 +568,19 @@
     }
 
     // Pregled
-
-let _renderPregledSeq = 0;
-async function renderPregled(options = {}){
+    
+function renderPregled(){
   const tb = document.querySelector('#pregledTable tbody');
-  if(!tb){
-    ordersReady = true;
-    if(saveBtn) saveBtn.disabled = false;
-    return;
-  }
-  const seq = ++_renderPregledSeq;
-  const { forceBust = false } = options || {};
+  if(!tb) return;
   tb.innerHTML='';
   const filterEl = document.querySelector('#filterInput');
   const filter = (filterEl && filterEl.value ? filterEl.value : '').toLowerCase();
 
+  const tryFetch = (url) => fetch(url + (url.includes('?')?'&':'?') + 'ts=' + Date.now(), {cache:'no-store'})
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); });
+
   function parseCSV(text){
-    text = (text||'').replace(/^\uFEFF/, '');
+    text = text.replace(/^\uFEFF/, '');
     const first = text.split(/\r?\n/,1)[0] || '';
     const delim = first.includes(';') ? ';' : ',';
     const rows = [];
@@ -651,104 +606,13 @@ async function renderPregled(options = {}){
     return rows;
   }
 
-  const normalizeHeader = (h)=> (h||'').toString().trim().toLowerCase();
-
-  const toNum = (value)=>{
-    if(value===undefined || value===null) return null;
-    if(typeof value === 'number') return Number.isFinite(value) ? value : null;
-    if(typeof value === 'string'){
-      const trimmed = value.trim();
-      if(!trimmed) return null;
-      const num = Number(trimmed);
-      return Number.isFinite(num) ? num : null;
-    }
-    const num = Number(value);
-    return Number.isFinite(num) ? num : null;
-  };
-
-  const toProdNumber = (value)=>{
-    if(value===undefined || value===null) return 0;
-    if(typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    const str = String(value).trim();
-    if(!str) return 0;
-    const num = Number(str.replace(/\s+/g,'').replace(',','.'));
-    return Number.isFinite(num) ? num : 0;
-  };
-
-  const normalizeUnit = (unit)=>{
-    const raw = (unit||'').toString().trim().toLowerCase()
-      .replace(/¹/g,'1').replace(/²/g,'2').replace(/³/g,'3')
-      .replace(/\./g,'').replace(/\s+/g,'');
-    if(raw==='komada' || raw==='komad') return 'kom';
-    return raw;
-  };
-
-  const normalizeOrderNo = (no)=>{
-    const raw = (no||'').toString().trim();
-    if(!raw) return '';
-    const normalized = raw.replace(/^0+(?=\d)/,'');
-    if(!normalized) return raw.includes('0') ? '0' : raw;
-    return normalized;
-  };
-
-  const cleanArt = (art)=> (art||'').toString().trim().toLowerCase();
-  const makeProdKey = (broj, art)=> `${broj}||${art}`;
-  const buildOrderKeys = (broj)=>{
-    const raw = (broj||'').toString().trim();
-    const set = new Set();
-    if(raw) set.add(raw);
-    const normalized = normalizeOrderNo(raw);
-    if(normalized) set.add(normalized);
-    if(normalized){
-      const padLen = (raw && raw.length>normalized.length) ? raw.length : 4;
-      set.add(normalized.padStart(padLen, '0'));
-    }
-    return Array.from(set).filter(Boolean);
-  };
-
-  const addProductionTotals = (map, broj, art, delta)=>{
-    const artKey = cleanArt(art);
-    if(!artKey) return;
-    const keys = buildOrderKeys(broj);
-    if(!keys.length) return;
-    keys.forEach(k=>{
-      const key = makeProdKey(k, artKey);
-      const rec = map.get(key);
-      if(rec){
-        rec.m1 += delta.m1;
-        rec.m2 += delta.m2;
-        rec.m3 += delta.m3;
-        rec.kom += delta.kom;
-      }else{
-        map.set(key, {m1:delta.m1, m2:delta.m2, m3:delta.m3, kom:delta.kom});
-      }
-    });
-  };
-
-  const lookupProduction = (map, broj, art)=>{
-    const artKey = cleanArt(art);
-    if(!artKey) return null;
-    const keys = buildOrderKeys(broj);
-    for(const key of keys){
-      const rec = map.get(makeProdKey(key, artKey));
-      if(rec) return rec;
-    }
-    return null;
-  };
-
-  function formatPair(ordered, produced, decimals){
-    const ordVal = toNum(ordered);
-    if(ordVal===null) return '';
-    const prodValRaw = toNum(produced);
-    const prodVal = prodValRaw===null ? 0 : prodValRaw;
-    return `${ordVal.toFixed(decimals)}/${prodVal.toFixed(decimals)}`;
+  function normalizeHeader(h){
+    return (h||'').toString().trim().toLowerCase();
   }
 
-  function parseOrdersFromText(text){
-    text = (text||'').replace(/^\uFEFF/, '').trim();
-    if(!text) return [];
-    const rows = parseCSV(text);
-    if(!rows.length) return [];
+  function renderFromText(text){
+    const rows = parseCSV(text.trim());
+    if(!rows.length) return;
     const header = rows[0].map(normalizeHeader);
     const idx = (name)=> header.indexOf(normalizeHeader(name));
     const iBroj   = idx('broj')>=0 ? idx('broj') : 0;
@@ -757,216 +621,105 @@ async function renderPregled(options = {}){
     const iVreme  = idx('vreme');
     const iStavke = (idx('stavke_json') >= 0) ? idx('stavke_json') : idx('stavke');
 
-    const orders = [];
-    for(let i=1;i<rows.length;i++){
-      const cols = rows[i];
-      if(!cols || !cols.length) continue;
-      const broj = (cols[iBroj]||'').trim();
-      if(!broj) continue;
-      const firma  = iFirma>=0  ? (cols[iFirma]||'').trim()  : '';
-      const adresa = iAdresa>=0 ? (cols[iAdresa]||'').trim() : '';
-      const vreme  = iVreme>=0  ? (cols[iVreme]||'').trim()  : '';
-      let stavke = [];
+    const orders = rows.slice(1).map(cols=>{
+      let stavke=[];
       const rawStavke = iStavke>=0 ? (cols[iStavke]||'') : '';
-      if(rawStavke){
-        try{
-          const parsed = JSON.parse(rawStavke);
-          if(Array.isArray(parsed)) stavke = parsed;
-        }catch(err){
-          try{
-            const fixed = rawStavke.replace(/""/g,'"');
-            const parsed = JSON.parse(fixed);
-            if(Array.isArray(parsed)) stavke = parsed;
-          }catch(_){ stavke = []; }
-        }
-      }
-      orders.push({ broj, firma, adresa, vreme, stavke });
-    }
-    return orders;
-  }
-
-  function parseProduction(text){
-    text = (text||'').replace(/^\uFEFF/, '').trim();
-    if(!text) return new Map();
-    const rows = parseCSV(text);
-    if(rows.length<=1) return new Map();
-    const header = rows[0].map(normalizeHeader);
-    const idx = (name)=>{
-      if(Array.isArray(name)){
-        for(const n of name){
-          const i = header.indexOf(normalizeHeader(n));
-          if(i>=0) return i;
-        }
-        return -1;
-      }
-      return header.indexOf(normalizeHeader(name));
-    };
-    const iBroj = idx(['brojzahteva','brojnaloga','broj naloga','broj']);
-    const iArt  = idx(['artikal','sifra']);
-    const iM1   = idx('m1');
-    const iM2   = idx('m2');
-    const iM3   = idx('m3');
-    const iKom  = idx('kom');
-    const map = new Map();
-    for(let i=1;i<rows.length;i++){
-      const cols = rows[i];
-      if(!cols || !cols.length) continue;
-      const broj = ((iBroj>=0 ? cols[iBroj] : (cols[1]||cols[0]||''))||'').trim();
-      const art  = ((iArt>=0  ? cols[iArt]  : (cols[2]||''))||'').trim();
-      if(!broj || !art) continue;
-      const delta = {
-        m1: toProdNumber(iM1>=0 ? cols[iM1] : null),
-        m2: toProdNumber(iM2>=0 ? cols[iM2] : null),
-        m3: toProdNumber(iM3>=0 ? cols[iM3] : null),
-        kom: toProdNumber(iKom>=0 ? cols[iKom] : null)
+      if(rawStavke){ try{ stavke = JSON.parse(rawStavke); }catch(_){ stavke=[]; } }
+      return {
+        broj:   (cols[iBroj]||'').trim(),
+        firma:  iFirma>=0  ? (cols[iFirma]||'').trim()  : '',
+        adresa: iAdresa>=0 ? (cols[iAdresa]||'').trim() : '',
+        vreme:  iVreme>=0  ? (cols[iVreme]||'').trim()  : '',
+        stavke
       };
-      addProductionTotals(map, broj, art, delta);
-    }
-    return map;
+    }).filter(n=>n.broj);
+
+    window._ORDERS_CACHE = orders.slice();
+
+    const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+    filtered.sort(_sorter.current);
+
+      filtered.forEach(n=>{
+        const tr = document.createElement('tr');
+        const dt = n.vreme ? new Date(n.vreme) : null;
+        const fmt = (v,d=2)=>{
+          if(v===undefined || v===null) return '';
+          if(typeof v === 'string' && v.trim()==='') return '';
+          const num = Number(v);
+          if(Number.isNaN(num)) return '';
+          return num.toFixed(d);
+        };
+        const artikliHtml = [];
+        const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
+        (n.stavke||[]).forEach(s=>{
+          const unit = (s.jedinica||'').toLowerCase();
+          artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
+          m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
+          m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
+          m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
+          komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
+        });
+        tr.innerHTML = `
+          <td class="nowrap"><b>${n.broj||''}</b></td>
+          <td>${n.firma||''}</td>
+          <td>${n.adresa||''}</td>
+          <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
+          <td>${artikliHtml.join('')}</td>
+          <td class="right qty-col">${m1Html.join('')}</td>
+          <td class="right qty-col">${m2Html.join('')}</td>
+          <td class="right qty-col">${m3Html.join('')}</td>
+          <td class="right qty-col">${komHtml.join('')}</td>
+          <td class="right">${(n.stavke||[]).length}</td>
+          <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+        tb.appendChild(tr);
+      });
   }
 
-  async function fetchOrders(options = {}){
-    const { forceBust = false } = options || {};
-    const urls = ['data/zahtevi.csv','/data/zahtevi.csv'];
-    let lastError = null;
-    for(const url of urls){
-      const bustUrl = url + (url.includes('?')?'&':'?') + 'ts=' + Date.now();
+  // Try relative and absolute CSV
+  tryFetch('data/zahtevi.csv')
+    .then(renderFromText)
+    .catch(()=> tryFetch('/data/zahtevi.csv').then(renderFromText).catch(()=>{
+      // Final fallback: localStorage
       try{
-        const res = await fetch(bustUrl, {cache:'no-store'});
-        if(!res.ok) throw new Error('HTTP '+res.status);
-        const text = await res.text();
-        return parseOrdersFromText(text);
-      }catch(err){
-        lastError = err;
-        if(forceBust) continue;
-        try{
-          const res = await fetch(url, {cache:'no-store'});
-          if(!res.ok) throw new Error('HTTP '+res.status);
-          const text = await res.text();
-          return parseOrdersFromText(text);
-        }catch(innerErr){
-          lastError = innerErr;
-        }
-      }
-    }
-    if(lastError) console.warn('Upozorenje: data/zahtevi.csv nije dostupna.', lastError);
-    try{
-      const local = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]');
-      return Array.isArray(local) ? local : [];
-    }catch(_){ return []; }
-  }
-
-  async function fetchProduction(options = {}){
-    const { forceBust = false } = options || {};
-    const urls = ['data/proizvodnja.csv','/data/proizvodnja.csv'];
-    let lastError = null;
-    for(const url of urls){
-      const bustUrl = url + (url.includes('?')?'&':'?') + 'ts=' + Date.now();
-      try{
-        const res = await fetch(bustUrl, {cache:'no-store'});
-        if(!res.ok) throw new Error('HTTP '+res.status);
-        const text = await res.text();
-        return parseProduction(text);
-      }catch(err){
-        lastError = err;
-        if(forceBust) continue;
-        try{
-          const res = await fetch(url, {cache:'no-store'});
-          if(!res.ok) throw new Error('HTTP '+res.status);
-          const text = await res.text();
-          return parseProduction(text);
-        }catch(innerErr){ lastError = innerErr; }
-      }
-    }
-    console.warn('Upozorenje: data/proizvodnja.csv nije dostupna.', lastError || '');
-    return new Map();
-  }
-
-  const [fetchedOrders, productionTotals] = await Promise.all([
-    fetchOrders({forceBust}),
-    fetchProduction({forceBust})
-  ]);
-  if(seq !== _renderPregledSeq) return;
-
-  const localOrders = getOrders();
-  const mergedMap = new Map();
-  if(Array.isArray(fetchedOrders)){
-    fetchedOrders.forEach(o=>{
-      if(o && o.broj!=null){
-        mergedMap.set(String(o.broj), o);
-      }
-    });
-  }
-  if(Array.isArray(localOrders)){
-    localOrders.forEach(o=>{
-      if(o && o.broj!=null){
-        mergedMap.set(String(o.broj), o);
-      }
-    });
-  }
-  const mergedOrders = Array.from(mergedMap.values());
-
-  window._ORDERS_CACHE = mergedOrders.slice();
-  try{ setOrders(mergedOrders); }catch(_){ }
-  try{ updateStats(); }catch(_){ }
-  const highestExisting = Math.max(getLastNo(), highestOrderNo(mergedOrders));
-  setLastNo(highestExisting);
-  ordersReady = true;
-  if(saveBtn) saveBtn.disabled = false;
-
-  const filtered = mergedOrders.filter(n => {
-    const hay = [n.broj, n.firma, n.adresa].map(v=> (v||'').toString().toLowerCase()).join(' ');
-    return !filter || hay.includes(filter);
-  });
-  filtered.sort(_sorter.current);
-
-  filtered.forEach(n=>{
-    const tr = document.createElement('tr');
-    const dt = n.vreme ? new Date(n.vreme) : null;
-    const items = Array.isArray(n.stavke) ? n.stavke : [];
-    const artikliHtml = [];
-    const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
-    items.forEach(s=>{
-      if(!s) return;
-      const sifra = (s.sifra||'').toString().trim();
-      const unit = normalizeUnit(s.jedinica);
-      const prod = lookupProduction(productionTotals, n.broj, sifra);
-      const isM1 = unit==='m1';
-      const isM3 = unit==='m3';
-      const isKom = unit==='kom';
-      const useBaseForM2 = unit==='m2' || (!isM1 && !isM3 && !isKom);
-
-      const orderedM1 = isM1 ? toNum(s.kolicina) : toNum(s.m1);
-      const orderedM2 = useBaseForM2 ? toNum(s.kolicina) : toNum(s.m2);
-      const orderedM3 = isM3 ? toNum(s.kolicina) : toNum(s.m3);
-      const orderedKom = isKom ? toNum(s.kolicina) : toNum(s.kom);
-
-      const producedM1 = prod ? prod.m1 : null;
-      const producedM2 = prod ? prod.m2 : null;
-      const producedM3 = prod ? prod.m3 : null;
-      const producedKom = prod ? prod.kom : null;
-
-      artikliHtml.push(`<div class="line-item">${sifra||''}</div>`);
-      m1Html.push(`<div class="line-item">${formatPair(orderedM1, producedM1, 2)}</div>`);
-      m2Html.push(`<div class="line-item">${formatPair(orderedM2, producedM2, 2)}</div>`);
-      m3Html.push(`<div class="line-item">${formatPair(orderedM3, producedM3, 3)}</div>`);
-      komHtml.push(`<div class="line-item">${formatPair(orderedKom, producedKom, 0)}</div>`);
-    });
-
-    tr.innerHTML = `
-      <td class="nowrap"><b>${n.broj||''}</b></td>
-      <td>${n.firma||''}</td>
-      <td>${n.adresa||''}</td>
-      <td class="nowrap">${dt ? dt.toLocaleString() : ''}</td>
-      <td>${artikliHtml.join('')}</td>
-      <td class="right qty-col">${m1Html.join('')}</td>
-      <td class="right qty-col">${m2Html.join('')}</td>
-      <td class="right qty-col">${m3Html.join('')}</td>
-      <td class="right qty-col">${komHtml.join('')}</td>
-      <td class="right">${items.length}</td>
-      <td class="right"><button class="secondary" data-open="${n.broj||''}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
-    tb.appendChild(tr);
-  });
+        const orders = JSON.parse(localStorage.getItem('proizvodnja_nalozi_v1')||'[]')||[];
+        window._ORDERS_CACHE = orders.slice();
+        const filtered = orders.filter(n => !filter || [n.broj, n.firma, n.adresa].join(' ').toLowerCase().includes(filter));
+        filtered.sort(_sorter.current);
+          filtered.forEach(n=>{
+            const tr = document.createElement('tr');
+            const fmt = (v,d=2)=>{
+              if(v===undefined || v===null) return '';
+              if(typeof v === 'string' && v.trim()==='') return '';
+              const num = Number(v);
+              if(Number.isNaN(num)) return '';
+              return num.toFixed(d);
+            };
+            const artikliHtml = [];
+            const m1Html = [], m2Html = [], m3Html = [], komHtml = [];
+            (n.stavke||[]).forEach(s=>{
+              const unit = (s.jedinica||'').toLowerCase();
+              artikliHtml.push(`<div class="line-item">${s.sifra||''}</div>`);
+              m1Html.push(`<div class="line-item">${fmt(unit==='m1'||unit==='m¹'?s.kolicina:s.m1)}</div>`);
+              m2Html.push(`<div class="line-item">${fmt(unit==='m2'||unit==='m²'||!['m1','m3','kom'].includes(unit)?s.kolicina:s.m2)}</div>`);
+              m3Html.push(`<div class="line-item">${fmt(unit==='m3'||unit==='m³'?s.kolicina:s.m3,3)}</div>`);
+              komHtml.push(`<div class="line-item">${fmt(unit==='kom'?s.kolicina:s.kom,0)}</div>`);
+            });
+            tr.innerHTML = `
+              <td class="nowrap"><b>${n.broj}</b></td>
+              <td>${n.firma||''}</td>
+              <td>${n.adresa||''}</td>
+              <td class="nowrap">${new Date(n.vreme).toLocaleString()}</td>
+              <td>${artikliHtml.join('')}</td>
+              <td class="right qty-col">${m1Html.join('')}</td>
+              <td class="right qty-col">${m2Html.join('')}</td>
+              <td class="right qty-col">${m3Html.join('')}</td>
+              <td class="right qty-col">${komHtml.join('')}</td>
+              <td class="right">${(n.stavke||[]).length}</td>
+              <td class="right"><button class="secondary" data-open="${n.broj}" style="width:auto">Otvori</button> <button class="ok edit-btn" style="width:auto;margin-left:6px">Izmeni</button></td>`;
+            tb.appendChild(tr);
+          });
+      }catch(_){}
+    }));
 }
 
 
@@ -1009,7 +762,7 @@ async function renderPregled(options = {}){
     q('#modalBack').addEventListener('click', (e)=>{ if(e.target.id==='modalBack') e.currentTarget.style.display='none'; });
 
     // Tools
-    q('#osveziPregled').addEventListener('click', ()=>renderPregled({forceBust:true}));
+    q('#osveziPregled').addEventListener('click', renderPregled);
     q('#filterInput').addEventListener('input', renderPregled);
     q('#exportCSV').addEventListener('click', exportCSV);
     q('#printBtn').addEventListener('click', ()=>window.print());
@@ -1508,7 +1261,7 @@ function saveEditedNalog(nalog){
       setLastNo(getLastNo());
       await loadExcel();
       updateStats();
-      await renderPregled();
+      renderPregled();
       rebuildCompaniesFromOrders();
     })();
   </script>
