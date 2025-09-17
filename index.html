@@ -671,19 +671,17 @@ function renderPregled(){
     .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); });
 
   function parseCSV(text){
-    text = text.replace(/^﻿/, '');
-    const first = text.split(/?
-/,1)[0] || '';
-    const delim = first.includes(';') ? ';' : ',';
-    const rows = [];
-    let i=0, field='', row=[], inQuotes=false;
-    while(i<text.length){
-      const ch = text[i];
-      if(ch === '"'){
-        if(inQuotes && text[i+1] === '"'){ field+='"'; i+=2; continue; }
-        inQuotes = !inQuotes; i++; continue;
+    text = text.replace(/^\uFEFF/, '');
+    const first = text.split(/\r?\n/,1)[0] || '';
+    let i = 0, field = '', row = [], inQuotes = false;
+    while(i < text.length){
+        if(inQuotes && text[i+1] === '"'){ field += '"'; i += 2; continue; }
+      if(!inQuotes && (ch === '\n' || ch === '\r')){
+        if(ch === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = '';
+        row = []; i++; continue;
       }
-      if(!inQuotes && (ch === '
+        row.push(field); field = ''; i++; continue;
 ' || ch === '')){
         if(ch === '' && text[i+1]=='
 ') i++;
